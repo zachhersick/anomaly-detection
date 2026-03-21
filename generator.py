@@ -1,4 +1,4 @@
-import random, statistics
+import random, math
 
 anomalies = ['spike', 'drop', 'drift', 'oscillation', 'stuck_sensor', 'impossible_value']
 sensors = ['temperature', 'pressure', 'vibration', 'flow_rate', 'voltage', 'current']
@@ -21,7 +21,7 @@ sensor_noise = {
     'current': (0,2)
     }
 
-anomaly_probability = 0.05
+anomaly_probability = 0.01
 anomaly_duration = {
     'spike': (1,3), 
     'drop': (1,3), 
@@ -31,8 +31,10 @@ anomaly_duration = {
     'impossible_value': (1,2)
     }
 
-random.seed(random.randint(1, 10000))
+seed = random.randint(1, 10000)
+random.seed(seed)
 
+# creates and returns a machine state independently of the current machine states
 def init_machine():
     return {
         'values': {s: random.uniform(*sensor_ranges[s]) for s in sensors},
@@ -40,30 +42,34 @@ def init_machine():
         'anomaly_type': None, 
         'remaining_duration': 0,
         'target_sensor': None, 
+        'is_anomaly': {s: 0 for s in sensors},
         
-        'drift_rate': random.uniform(0.005, 0.02),
+        'drift_rate': random.uniform(0.02, 0.05),
         'drift_direction': 1,
         'stuck_value': None,
         'osc_center': None,
         'osc_amplitude': None,
-        'osc_direction': 1
+        'osc_phase': 0
     }
     
+#instantiate machines
 machines = [init_machine() for i in range(3)]
 
+#normal data step function
 def step_normal(previous_value, sensor):
     lo, hi = sensor_ranges[sensor]
     center = (lo + hi) / 2
     noise = random.uniform(-sensor_noise[sensor][1], sensor_noise[sensor][1])
     return previous_value + 0.1*(center - previous_value) + noise
 
-def spike(sensor):
+#anomaly data step functions
+def spike(previous_value, sensor):
     lo, hi = sensor_ranges[sensor]
-    return hi + random.uniform(0.5*(hi-lo), (hi-lo))
+    return previous_value + random.uniform(0.5*(hi-lo), (hi-lo))
     
-def drop(sensor):
+def drop(previous_value, sensor):
     lo, hi = sensor_ranges[sensor]
-    return lo - random.uniform(0.5*(hi-lo), (hi-lo))
+    return previous_value - random.uniform(0.5*(hi-lo), (hi-lo))
 
 def drift(previous_value, machine, sensor):
     noise = random.uniform(-(sensor_noise[sensor][1]), sensor_noise[sensor][1])
@@ -71,9 +77,8 @@ def drift(previous_value, machine, sensor):
 
 def oscillation(machine, sensor):
     noise = random.uniform(-(sensor_noise[sensor][1]), sensor_noise[sensor][1])
-    next_value = machine['osc_center'] + machine['osc_direction'] * machine['osc_amplitude'] + noise
-    machine['osc_direction'] *= -1
-    return next_value
+    machine['osc_phase'] += 0.3
+    return machine['osc_center'] + machine['osc_amplitude'] * math.sin(machine['osc_phase']) + noise
 
 def stuck_sensor(machine):
     return machine['stuck_value']
@@ -84,10 +89,15 @@ def impossible_value(sensor):
         return random.uniform(-10, -1)
     if sensor == 'voltage':
         return 0
-    return random.choice[(lo*5, hi*5)]
+    return random.uniform(hi*1.5, hi*3)
+
+def clip(sensor, value):
+    lo, hi = sensor_ranges[sensor]
+    return max(lo * 0.5, min(hi * 1.5, value))
 
 num_timesteps = 300
 
+#data loop
 for step in range(num_timesteps):
     for i, machine in enumerate(machines):
         
@@ -98,9 +108,15 @@ for step in range(num_timesteps):
             machine['remaining_duration'] = random.randint(*anomaly_duration[machine['anomaly_type']])
             
             sensor = machine['target_sensor']
+            if machine['mode'] == 'ANOMALY' and sensor == machine['target_sensor']:
+                machine['is_anomaly'][sensor] = 1
+            else:
+                machine['is_anomaly'][sensor] = 0
             
             if machine['anomaly_type'] == 'drift':
                 machine['drift_direction'] = random.choice([-1, 1])
+                machine['drift_rate'] += random.uniform(-0.005, 0.005)
+                machine['drift_rate'] = max(0.01, min(0.1, machine['drift_rate']))
             
             if machine['anomaly_type'] == 'stuck_sensor':
                 machine['stuck_value'] = machine['values'][sensor]
@@ -109,25 +125,34 @@ for step in range(num_timesteps):
                 lo, hi = sensor_ranges[sensor]
                 machine['osc_center'] = machine['values'][sensor]
                 machine['osc_amplitude'] = 0.2*(hi-lo)
-                machine['osc_dir'] = random.choice([-1, 1])
+                machine['osc_phase'] = 0
                     
         for sensor in sensors:
             if machine['mode'] == 'ANOMALY' and sensor == machine['target_sensor']:
-                type = machine['anomaly_type']
-                if type == 'spike':
-                    machine['values'][sensor] = spike(sensor)
-                elif type == 'drop':
-                    machine['values'][sensor] = drop(sensor)
-                elif type == 'drift':
+                atype = machine['anomaly_type']
+                if atype == 'spike':
+                    machine['values'][sensor] = spike(machine['values'][sensor], sensor)
+                    machine['values'][sensor] = clip(sensor, machine['values'][sensor])
+                elif atype == 'drop':
+                    machine['values'][sensor] = drop(machine['values'][sensor], sensor)
+                    machine['values'][sensor] = clip(sensor, machine['values'][sensor])
+                elif atype == 'drift':
                     machine['values'][sensor] = drift(machine['values'][sensor], machine, sensor)
-                if type == 'oscillation':
+                    machine['values'][sensor] = clip(sensor, machine['values'][sensor])
+                elif atype == 'oscillation':
                     machine['values'][sensor] = oscillation(machine, sensor)
-                if type == 'stuck_sensor':
+                    machine['values'][sensor] = clip(sensor, machine['values'][sensor])
+                elif atype == 'stuck_sensor':
                     machine['values'][sensor] = stuck_sensor(machine)
-                if type == 'impossible_value':
+                    machine['values'][sensor] = clip(sensor, machine['values'][sensor])
+                elif atype == 'impossible_value':
                     machine['values'][sensor] = impossible_value(sensor)
             else:
-                machine['values'][sensor] = step_normal(machine['values'][sensor], sensor)
+                machine['values'][sensor] = clip(sensor, step_normal(machine['values'][sensor], sensor))
+                if machine['mode'] == 'ANOMALY':
+                    noise_scale = sensor_noise[sensor][1]
+                    machine['values'][sensor] += random.uniform(-0.2*noise_scale, 0.2*noise_scale)
+                    machine['values'][sensor] = clip(sensor, machine['values'][sensor])
         
         if machine['mode'] == 'ANOMALY':
             machine['remaining_duration'] -= 1
@@ -135,6 +160,8 @@ for step in range(num_timesteps):
                 machine['mode'] = 'NORMAL'
                 machine['anomaly_type'] = None
                 machine['target_sensor'] = None
+                for s in sensors:
+                    machine['is_anomaly'][s] = 0
         
         print(
             f"step={step:03d} | machine={i} | "
