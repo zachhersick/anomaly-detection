@@ -1,4 +1,7 @@
 import random, math
+import pandas as pd
+
+rows = []
 
 anomalies = ['spike', 'drop', 'drift', 'oscillation', 'stuck_sensor', 'impossible_value']
 sensors = ['temperature', 'pressure', 'vibration', 'flow_rate', 'voltage', 'current']
@@ -39,9 +42,9 @@ def init_machine():
     return {
         'values': {s: random.uniform(*sensor_ranges[s]) for s in sensors},
         'mode': "NORMAL", 
-        'anomaly_type': None, 
+        'anomaly_type': 'none', 
         'remaining_duration': 0,
-        'target_sensor': None, 
+        'target_sensor': 'none', 
         'is_anomaly': {s: 0 for s in sensors},
         
         'drift_rate': random.uniform(0.02, 0.05),
@@ -53,7 +56,8 @@ def init_machine():
     }
     
 #instantiate machines
-machines = [init_machine() for i in range(3)]
+num_machines = 10
+machines = [init_machine() for i in range(num_machines)]
 
 #normal data step function
 def step_normal(previous_value, sensor):
@@ -95,7 +99,7 @@ def clip(sensor, value):
     lo, hi = sensor_ranges[sensor]
     return max(lo * 0.5, min(hi * 1.5, value))
 
-num_timesteps = 300
+num_timesteps = 5000
 
 #data loop
 for step in range(num_timesteps):
@@ -108,15 +112,10 @@ for step in range(num_timesteps):
             machine['remaining_duration'] = random.randint(*anomaly_duration[machine['anomaly_type']])
             
             sensor = machine['target_sensor']
-            if machine['mode'] == 'ANOMALY' and sensor == machine['target_sensor']:
-                machine['is_anomaly'][sensor] = 1
-            else:
-                machine['is_anomaly'][sensor] = 0
             
             if machine['anomaly_type'] == 'drift':
                 machine['drift_direction'] = random.choice([-1, 1])
-                machine['drift_rate'] += random.uniform(-0.005, 0.005)
-                machine['drift_rate'] = max(0.01, min(0.1, machine['drift_rate']))
+                machine['drift_rate'] = random.uniform(0.01, 0.1)
             
             if machine['anomaly_type'] == 'stuck_sensor':
                 machine['stuck_value'] = machine['values'][sensor]
@@ -129,6 +128,8 @@ for step in range(num_timesteps):
                     
         for sensor in sensors:
             if machine['mode'] == 'ANOMALY' and sensor == machine['target_sensor']:
+                machine['is_anomaly'][sensor] = 1
+                
                 atype = machine['anomaly_type']
                 if atype == 'spike':
                     machine['values'][sensor] = spike(machine['values'][sensor], sensor)
@@ -148,29 +149,46 @@ for step in range(num_timesteps):
                 elif atype == 'impossible_value':
                     machine['values'][sensor] = impossible_value(sensor)
             else:
+                machine['is_anomaly'][sensor] = 0
                 machine['values'][sensor] = clip(sensor, step_normal(machine['values'][sensor], sensor))
                 if machine['mode'] == 'ANOMALY':
                     noise_scale = sensor_noise[sensor][1]
                     machine['values'][sensor] += random.uniform(-0.2*noise_scale, 0.2*noise_scale)
                     machine['values'][sensor] = clip(sensor, machine['values'][sensor])
         
+        row = {}         
+        row['step'] = step+1
+        row['machine_id'] = i+1
+        
+        if machine['mode'] == 'ANOMALY':
+            row['any_anomaly'] = 1
+        else:
+            row['any_anomaly'] = 0
+            
+        row['target_sensor'] = machine['target_sensor']
+        
+        for sensor in sensors:
+            row[sensor] = machine['values'][sensor]
+            row[sensor + '_anomaly'] = machine['is_anomaly'][sensor]
+            
+        row['anomaly_type'] = machine['anomaly_type']    
+        rows.append(row)
+        
         if machine['mode'] == 'ANOMALY':
             machine['remaining_duration'] -= 1
             if machine['remaining_duration'] <= 0:
                 machine['mode'] = 'NORMAL'
-                machine['anomaly_type'] = None
-                machine['target_sensor'] = None
+                machine['anomaly_type'] = 'none'
+                machine['target_sensor'] = 'none'
                 for s in sensors:
                     machine['is_anomaly'][s] = 0
+                    
+rows_df = pd.DataFrame(rows)
+#rows_df.to_csv("sensor_data.csv", index=False)
+print(rows_df.shape)
+print(rows_df.dtypes)
+print(rows_df['any_anomaly'].value_counts(normalize=True))
+print(rows_df.sample(10))
         
-        print(
-            f"step={step:03d} | machine={i} | "
-            f"T={machine['values']['temperature']:.2f} "
-            f"P={machine['values']['pressure']:.2f} "
-            f"Vib={machine['values']['vibration']:.2f} | "
-            f"mode={machine['mode']:<7} "
-            f"type={str(machine['anomaly_type']):<15} "
-            f"target={str(machine['target_sensor']):<12} "
-            f"remaining={machine['remaining_duration']:03d}"
-        )
+        
                 
