@@ -1,4 +1,4 @@
-import random, math
+import random, math, statistics
 import pandas as pd
 
 rows = []
@@ -183,12 +183,8 @@ for step in range(num_timesteps):
                 for s in sensors:
                     machine['is_anomaly'][s] = 0
                     
-rows_df = pd.DataFrame(rows)
-#rows_df.to_csv("sensor_data.csv", index=False)
-print(rows_df.shape)
-print(rows_df.dtypes)
-print(rows_df['any_anomaly'].value_counts(normalize=True))
-print(rows_df.sample(10))
+rows_df = pd.DataFrame(rows, index=None)
+rows_df.to_csv("sensor_data_raw.csv", index=False)
         
         
                 
