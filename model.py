@@ -1,4 +1,6 @@
 import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn import metrics
 
 df = pd.read_csv('sensor_data_features.csv')
 
@@ -12,7 +14,21 @@ label_cols = [
 y = df['any_anomaly']
 X = df.drop(columns=meta_cols + label_cols)
 
-print(X.columns)
-print(X.shape)
-print(y.value_counts())
+split_index = int(0.8*len(df))
 
+X_train = X[:split_index]
+y_train = y[:split_index]
+
+X_test = X[split_index:]
+y_test = y[split_index:]
+
+df_test = df.iloc[split_index:].copy()
+
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+predictions = model.predict(X_test)
+
+df_test['real_value'] = y_test
+df_test['prediction'] = predictions
+
+df_test.to_csv('predictions.csv')
