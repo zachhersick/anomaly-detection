@@ -26,6 +26,17 @@ df_test = df.iloc[split_index:].copy()
 
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
+
+importances_df = pd.DataFrame({
+    'feature': X.columns,
+    'importance': model.feature_importances_
+})
+importances_df = importances_df.sort_values(
+    by='importance',
+    ascending=False
+)
+
+importances_df.to_csv('feature_importance.csv', index=False)
 predictions = model.predict(X_test)
 
 df_test['real_value'] = y_test

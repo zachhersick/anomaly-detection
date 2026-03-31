@@ -1,10 +1,82 @@
 from sklearn import metrics
 import pandas as pd
 
+sensors = ['temperature', 'pressure', 'vibration', 'flow_rate', 'voltage', 'current']
+
 df = pd.read_csv('predictions.csv')
 y_test = df['real_value'].tolist()
 predictions = df['prediction'].tolist()
 
+df['target_5_step_diff'] = float('nan')
+df['target_10_step_diff'] = float('nan')
+df['target_short_long_mean_diff'] = float('nan')
+
+for i, row in df.iterrows():
+    if row['real_value'] == 1:
+        sensor = row['target_sensor']
+        
+        df.at[i, 'target_5_step_diff'] = row[f'{sensor}_5_step_diff']
+        df.at[i, 'target_10_step_diff'] = row[f'{sensor}_10_step_diff']
+        df.at[i, 'target_short_long_mean_diff'] = row[f'{sensor}_short_long_mean_diff']
+        
+        if row['prediction'] == 0 and row['anomaly_type'] == 'drift':
+            print(sensor)
+            print(row[f'{sensor}_5_step_diff'])
+            print(row[f'{sensor}_10_step_diff'])
+            print(row[f'{sensor}_short_long_mean_diff']) 
+            
+drift_rows = df[
+    (df['real_value'] == 1) &
+    (df['anomaly_type'] == 'drift')
+    ]
+
+drift_by_sensor = drift_rows.groupby(by='target_sensor').agg(
+    total=('prediction', 'size'),
+    correct=('prediction', lambda x: (x == 1).sum()),
+    missed=('prediction', lambda x: (x == 0).sum())
+)
+
+drift_by_sensor['recall'] = drift_by_sensor['correct'] / drift_by_sensor['total']
+
+print(drift_by_sensor)
+
+osc_rows = df[
+    (df['real_value'] == 1) &
+    (df['anomaly_type'] == 'oscillation')
+    ]
+
+osc_by_sensor = osc_rows.groupby(by='target_sensor').agg(
+    total=('prediction', 'size'),
+    correct=('prediction', lambda x: (x == 1).sum()),
+    missed=('prediction', lambda x: (x == 0).sum())
+)
+
+osc_by_sensor['recall'] = osc_by_sensor['correct'] / osc_by_sensor['total']
+
+print(osc_by_sensor)
+    
+correct_drift_rows = df[
+    (df['anomaly_type'] == 'drift') & 
+    (df['real_value'] == 1) & 
+    (df['prediction'] == 1)
+    ]
+
+missed_drift_rows = df[
+    (df['anomaly_type'] == 'drift') & 
+    (df['real_value'] == 1) & 
+    (df['prediction'] == 0)
+    ]
+
+print('Correct drift rows:')
+print(correct_drift_rows[
+    ['target_5_step_diff', 'target_10_step_diff', 'target_short_long_mean_diff']
+].describe())
+
+print('\nMissed drift rows:')
+print(missed_drift_rows[
+    ['target_5_step_diff', 'target_10_step_diff', 'target_short_long_mean_diff']
+].describe())
+        
 num_spike = 0
 num_spike_correct = 0
 num_drop = 0
