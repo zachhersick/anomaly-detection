@@ -1,4 +1,4 @@
-import random, math, statistics
+import random, math
 import pandas as pd
 
 rows = []
@@ -43,12 +43,12 @@ sensor_drift_noise = {
 }
 
 sensor_drift_cap_pct = {
-    'temperature': (0.20, 0.35),
-    'pressure': (0.20, 0.35),
-    'vibration': (0.20, 0.35),
-    'flow_rate': (0.20, 0.35),
-    'voltage': (0.20, 0.35),
-    'current': (0.20, 0.35)
+    'temperature': (0.30, 0.5),
+    'pressure': (0.25, 0.45),
+    'vibration': (0.25, 0.5),
+    'flow_rate': (0.25, 0.45),
+    'voltage': (0.25, 0.45),
+    'current': (0.25, 0.5)
 }
 
 anomaly_probability = 0.01
@@ -75,8 +75,8 @@ def init_machine():
         'target_sensor': 'none', 
         'is_anomaly': {s: 0 for s in sensors},
         
-        'drift_rate': 0,
-        'drift_direction': 0,
+        'drift_rate': None,
+        'drift_direction': None,
         'drift_target': None,
         'stuck_value': None,
         'osc_center': None,
@@ -141,12 +141,13 @@ def get_drift_direction(machine, sensor):
     upper_bound = hi * 1.5
     span = upper_bound - lower_bound
     position = (machine['values'][sensor] - lower_bound) / span
+    
     if (position >= 0.8):
         return upper_bound, lower_bound, -1
     elif (position <= 0.2):
         return upper_bound, lower_bound, 1
     else:
-        return random.choice([-1, 1])
+        return upper_bound, lower_bound, random.choice([-1, 1])
 
 num_timesteps = 5000
 
@@ -182,7 +183,7 @@ for step in range(num_timesteps):
                 total_change = min(desired_total_change, available_room)
                 
                 machine['drift_target'] = start_value + (machine['drift_direction'] * total_change)
-                machine['drift_rate'] = random.uniform(sensor_drift_rate[sensor][0], sensor_drift_rate[sensor][1])
+                machine['drift_rate'] = total_change / machine['remaining_duration']
             
             if machine['anomaly_type'] == 'stuck_sensor':
                 machine['stuck_value'] = machine['values'][sensor]
@@ -248,9 +249,9 @@ for step in range(num_timesteps):
                 machine['anomaly_type'] = 'none'
                 machine['target_sensor'] = 'none'
                 
-                machine['drift_rate'] = 0
-                machine['drift_direction'] = 0
-                machine['drift_target'] = 0
+                machine['drift_rate'] = None
+                machine['drift_direction'] = None
+                machine['drift_target'] = None
                 
                 for s in sensors:
                     machine['is_anomaly'][s] = 0
