@@ -24,7 +24,35 @@ sensor_noise = {
     'current': (0,2)
     }
 
+sensor_drift_rate = {
+    'temperature': (0.1, 0.2),
+    'pressure': (0.12, 0.25),
+    'vibration': (0.04, 0.08),
+    'flow_rate': (0.01, 0.02),
+    'voltage': (0.1, 0.22),
+    'current': (0.12, 0.25)
+}
+
+sensor_drift_noise = {
+    'temperature': 0.15,
+    'pressure': 0.15,
+    'vibration': 0.03,
+    'flow_rate': 0.009,
+    'voltage': 0.15,
+    'current': 0.15
+}
+
+sensor_drift_cap_pct = {
+    'temperature': (0.20, 0.35),
+    'pressure': (0.20, 0.35),
+    'vibration': (0.20, 0.35),
+    'flow_rate': (0.20, 0.35),
+    'voltage': (0.20, 0.35),
+    'current': (0.20, 0.35)
+}
+
 anomaly_probability = 0.01
+
 anomaly_duration = {
     'spike': (1,3), 
     'drop': (1,3), 
@@ -47,8 +75,9 @@ def init_machine():
         'target_sensor': 'none', 
         'is_anomaly': {s: 0 for s in sensors},
         
-        'drift_rate': random.uniform(0.02, 0.05),
-        'drift_direction': 1,
+        'drift_rate': 0,
+        'drift_direction': 0,
+        'drift_target': None,
         'stuck_value': None,
         'osc_center': None,
         'osc_amplitude': None,
@@ -76,8 +105,15 @@ def drop(previous_value, sensor):
     return previous_value - random.uniform(0.5*(hi-lo), (hi-lo))
 
 def drift(previous_value, machine, sensor):
-    noise = random.uniform(-(sensor_noise[sensor][1]), sensor_noise[sensor][1])
-    return previous_value + machine['drift_direction'] * machine['drift_rate'] + noise
+    noise = random.uniform(-(sensor_drift_noise[sensor]), sensor_drift_noise[sensor])
+    candidate = previous_value + (machine['drift_direction'] * machine['drift_rate']) + noise
+    
+    if machine['drift_direction'] == 1:
+        candidate = max(previous_value, candidate)
+        return min (candidate, machine['drift_target'])
+    else:
+        candidate = min(previous_value, candidate)
+        return max(candidate, machine['drift_target'])
 
 def oscillation(machine, sensor):
     noise = random.uniform(-(sensor_noise[sensor][1]), sensor_noise[sensor][1])
@@ -99,6 +135,19 @@ def clip(sensor, value):
     lo, hi = sensor_ranges[sensor]
     return max(lo * 0.5, min(hi * 1.5, value))
 
+def get_drift_direction(machine, sensor):
+    lo, hi = sensor_ranges[sensor]
+    lower_bound = lo * 0.5
+    upper_bound = hi * 1.5
+    span = upper_bound - lower_bound
+    position = (machine['values'][sensor] - lower_bound) / span
+    if (position >= 0.8):
+        return upper_bound, lower_bound, -1
+    elif (position <= 0.2):
+        return upper_bound, lower_bound, 1
+    else:
+        return random.choice([-1, 1])
+
 num_timesteps = 5000
 
 #data loop
@@ -114,8 +163,26 @@ for step in range(num_timesteps):
             sensor = machine['target_sensor']
             
             if machine['anomaly_type'] == 'drift':
-                machine['drift_direction'] = random.choice([-1, 1])
-                machine['drift_rate'] = random.uniform(0.01, 0.1)
+                upper_bound, lower_bound, machine['drift_direction'] = get_drift_direction(machine, sensor)
+                
+                lo, hi = sensor_ranges[sensor]
+                start_value = machine['values'][sensor]
+                sensor_span = hi - lo
+                
+                desired_total_change = random.uniform(
+                    sensor_drift_cap_pct[sensor][0],
+                    sensor_drift_cap_pct[sensor][1]
+                ) * sensor_span
+                
+                if machine['drift_direction'] == 1:
+                    available_room = upper_bound - start_value
+                else:
+                    available_room = start_value - lower_bound
+                
+                total_change = min(desired_total_change, available_room)
+                
+                machine['drift_target'] = start_value + (machine['drift_direction'] * total_change)
+                machine['drift_rate'] = random.uniform(sensor_drift_rate[sensor][0], sensor_drift_rate[sensor][1])
             
             if machine['anomaly_type'] == 'stuck_sensor':
                 machine['stuck_value'] = machine['values'][sensor]
@@ -180,6 +247,11 @@ for step in range(num_timesteps):
                 machine['mode'] = 'NORMAL'
                 machine['anomaly_type'] = 'none'
                 machine['target_sensor'] = 'none'
+                
+                machine['drift_rate'] = 0
+                machine['drift_direction'] = 0
+                machine['drift_target'] = 0
+                
                 for s in sensors:
                     machine['is_anomaly'][s] = 0
                     
