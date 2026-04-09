@@ -25,6 +25,7 @@ sensor_noise = {
     }
 
 anomaly_probability = 0.01
+
 anomaly_duration = {
     'spike': (1,3), 
     'drop': (1,3), 
