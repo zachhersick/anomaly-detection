@@ -71,6 +71,60 @@ for i, row in df.iterrows():
             num_impossible += 1
             if row['prediction'] == 1:
                 num_impossible_correct += 1
+                
+osc_feature_suffixes = [
+    'lag_5_autocorr',
+    'lag_10_autocorr',
+    'centered_zero_cross_count_10',
+    'centered_zero_cross_count_20',
+    'dir_imbalance_10',
+    'dir_imbalance_20',
+    'trend_ratio_10',
+    'trend_ratio_25',
+    'center_balance_10',
+    'center_balance_20',
+]
+                
+def debug_oscillation_sensor(sensor):
+    sensor_rows = df.loc[
+        (df['real_value'] == 1) &
+        (df['anomaly_type'] == 'oscillation') &
+        (df['target_sensor'] == sensor)
+    ]
+
+    correct_rows = sensor_rows.loc[sensor_rows['prediction'] == 1]
+    missed_rows = sensor_rows.loc[sensor_rows['prediction'] == 0]
+
+    compare_cols = [
+        f'{sensor}_{suffix}'
+        for suffix in osc_feature_suffixes
+        if f'{sensor}_{suffix}' in df.columns
+    ]
+    
+    if not compare_cols:
+        print(f'\n--- OSCILLATION DEBUG: {sensor} ---')
+        print('No matching oscillation feature columns found.')
+        return
+
+    print(f'\n--- OSCILLATION DEBUG: {sensor} ---')
+    print('correct:', len(correct_rows))
+    print('missed:', len(missed_rows))
+    print('columns:', compare_cols)
+
+    print('\ncorrect describe')
+    print(correct_rows[compare_cols].describe())
+
+    print('\nmissed describe')
+    print(missed_rows[compare_cols].describe())
+
+    print('\nmean difference (correct - missed)')
+    print(correct_rows[compare_cols].mean() - missed_rows[compare_cols].mean())
+
+    print('\ncorrect NaN counts')
+    print(correct_rows[compare_cols].isna().sum())
+
+    print('\nmissed NaN counts')
+    print(missed_rows[compare_cols].isna().sum())
 
 #Row-retention table
 print(counts)
@@ -91,98 +145,6 @@ print("impossible_value: ", num_impossible_correct, num_impossible, num_impossib
 print(drift_by_sensor)
 print(osc_by_sensor)
 
-
-
-# sensors = ['temperature', 'pressure', 'vibration', 'flow_rate', 'voltage', 'current']
-# anomalies = ['drift', 'oscillation']
-
-# for i, row in df.iterrows():
-#     if row['real_value'] == 1:
-#         sensor = row['target_sensor']
-        
-#         df.at[i, 'target_5_step_diff'] = row[f'{sensor}_5_step_diff']
-#         df.at[i, 'target_10_step_diff'] = row[f'{sensor}_10_step_diff']
-#         df.at[i, 'target_short_long_mean_diff'] = row[f'{sensor}_short_long_mean_diff']
-#         if row['prediction'] == 0 and row['anomaly_type'] == 'drift':
-#                     print(sensor)
-#                     print(row[f'{sensor}_5_step_diff'])
-#                     print(row[f'{sensor}_10_step_diff'])
-#                     print(row[f'{sensor}_short_long_mean_diff'])  
-
-# print('Correct drift rows:')
-# print(correct_drift_rows[
-#     ['target_5_step_diff', 'target_10_step_diff', 'target_short_long_mean_diff']
-# ].describe())
-
-# print('\nMissed drift rows:')
-# print(missed_drift_rows[
-#     ['target_5_step_diff', 'target_10_step_diff', 'target_short_long_mean_diff']
-# ].describe())
-
-# def build_sensor_comparisons(anomaly_rows, sensors):
-#     by_sensor = {}
-#     correct = {}
-#     missed = {}
-#     correct_compare = {}
-#     missed_compare = {}
-
-#     for sensor in sensors:
-#         by_sensor[sensor] = anomaly_rows[anomaly_rows['target_sensor'] == sensor]
-
-#         correct[sensor] = by_sensor[sensor][by_sensor[sensor]['prediction'] == 1]
-#         missed[sensor] = by_sensor[sensor][by_sensor[sensor]['prediction'] == 0]
-
-#         compare_cols = [
-#             f'{sensor}_5_step_diff',
-#             f'{sensor}_10_step_diff',
-#             f'{sensor}_short_long_mean_diff',
-#             f'{sensor}_roll_std',
-#             f'{sensor}_roll_mean'
-#         ]
-
-#         correct_compare[sensor] = correct[sensor][compare_cols].agg(
-#             ['mean', 'median', 'std', 'min', 'max']
-#         ).T
-
-#         missed_compare[sensor] = missed[sensor][compare_cols].agg(
-#             ['mean', 'median', 'std', 'min', 'max']
-#         ).T
-
-#     return by_sensor, correct, missed, correct_compare, missed_compare
-
-# results = {}
-
-# results['drift'] = {}
-# results['drift']['by_sensor'], results['drift']['correct'], results['drift']['missed'], \
-# results['drift']['correct_compare'], results['drift']['missed_compare'] = \
-#     build_sensor_comparisons(drift_rows, sensors)
-
-# results['oscillation'] = {}
-# results['oscillation']['by_sensor'], results['oscillation']['correct'], results['oscillation']['missed'], \
-# results['oscillation']['correct_compare'], results['oscillation']['missed_compare'] = \
-#     build_sensor_comparisons(osc_rows, sensors)
-    
-# for anomaly in anomalies:
-#     print(anomaly)
-#     for sensor in sensors:
-#         print(sensor)
-#         print(results[anomaly]['correct_compare'][sensor])
-#         print(results[anomaly]['missed_compare'][sensor])
-#         print('-----------------------------------')
-#     print('-----------------------------------')
-
-# correct_drift_rows = df[
-#     (df['anomaly_type'] == 'drift') & 
-#     (df['real_value'] == 1) & 
-#     (df['prediction'] == 1)
-#     ]
-
-# missed_drift_rows = df[
-#     (df['anomaly_type'] == 'drift') & 
-#     (df['real_value'] == 1) & 
-#     (df['prediction'] == 0)
-#     ]
-
-# df['target_5_step_diff'] = float('nan')
-# df['target_10_step_diff'] = float('nan')
-# df['target_short_long_mean_diff'] = float('nan') 
+#current osc correct vs missed
+debug_oscillation_sensor('current')
+debug_oscillation_sensor('voltage')
