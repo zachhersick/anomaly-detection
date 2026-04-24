@@ -17,20 +17,6 @@ LABEL_COL = 'any_anomaly'
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
 
-THRESHOLDS = [
-    0.30,
-    0.35,
-    0.40,
-    0.45,
-    0.50,
-    0.55,
-    0.60,
-    0.65,
-    0.70,
-]
-
-DEFAULT_THRESHOLD = 0.35
-
 
 # ---------------------------------------------------------------------
 # Ablation groups
@@ -68,6 +54,7 @@ ABLATION_RUNS = {
     'final_model': [],
 }
 
+
 # ---------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------
@@ -99,23 +86,11 @@ def safe_recall(correct, total):
     return correct / total
 
 
-def evaluate_predictions(run_name, y_test, pred_series, meta_test, threshold=None):
+def evaluate_predictions(run_name, y_test, pred_series, meta_test):
     cm = metrics.confusion_matrix(y_test, pred_series, labels=[0, 1])
     tn, fp, fn, tp = cm.ravel()
 
     anomaly_recall = safe_recall(tp, tp + fn)
-
-    precision = metrics.precision_score(
-        y_test,
-        pred_series,
-        zero_division=0
-    )
-
-    f1 = metrics.f1_score(
-        y_test,
-        pred_series,
-        zero_division=0
-    )
 
     osc_mask = (
         (y_test == 1) &
@@ -143,11 +118,8 @@ def evaluate_predictions(run_name, y_test, pred_series, meta_test, threshold=Non
 
     return {
         'run_name': run_name,
-        'threshold': threshold,
 
         'accuracy': metrics.accuracy_score(y_test, pred_series),
-        'precision': precision,
-        'f1': f1,
 
         'true_negatives': tn,
         'false_positives': fp,
@@ -259,31 +231,26 @@ meta_test = meta.loc[test_idx].copy()
 
 
 # ---------------------------------------------------------------------
-# Train final model
+# Run ablations
 # ---------------------------------------------------------------------
 
-model = make_model()
-model.fit(X_full.loc[train_idx], y_train)
+ablation_results = []
 
-X_test = X_full.loc[test_idx]
+for run_name, suffixes_to_drop in ABLATION_RUNS.items():
+    cols_to_drop = find_cols_with_suffixes(
+        X_full.columns,
+        suffixes_to_drop
+    )
 
-anomaly_scores = model.predict_proba(X_test)[:, 1]
+    X_run = X_full.drop(columns=cols_to_drop)
 
-score_series = pd.Series(
-    anomaly_scores,
-    index=test_idx,
-    name='anomaly_score'
-)
+    X_train = X_run.loc[train_idx]
+    X_test = X_run.loc[test_idx]
 
+    model = make_model()
+    model.fit(X_train, y_train)
 
-# ---------------------------------------------------------------------
-# Threshold sweep
-# ---------------------------------------------------------------------
-
-threshold_results = []
-
-for threshold in THRESHOLDS:
-    predictions = (score_series >= threshold).astype(int)
+    predictions = model.predict(X_test)
 
     pred_series = pd.Series(
         predictions,
@@ -291,79 +258,95 @@ for threshold in THRESHOLDS:
         name='prediction'
     )
 
-    result = evaluate_predictions(
-        run_name=f'threshold_{threshold}',
-        y_test=y_test,
-        pred_series=pred_series,
-        meta_test=meta_test,
-        threshold=threshold
+    if hasattr(model, 'predict_proba'):
+        anomaly_scores = model.predict_proba(X_test)[:, 1]
+    else:
+        anomaly_scores = predictions
+
+    score_series = pd.Series(
+        anomaly_scores,
+        index=test_idx,
+        name='anomaly_score'
     )
 
-    threshold_results.append(result)
+    result = evaluate_predictions(
+        run_name=run_name,
+        y_test=y_test,
+        pred_series=pred_series,
+        meta_test=meta_test
+    )
 
+    result['num_features_used'] = X_run.shape[1]
+    result['num_features_removed'] = len(cols_to_drop)
+    result['removed_features'] = ', '.join(cols_to_drop)
+
+    ablation_results.append(result)
+
+    # Save predictions for this ablation run.
     predictions_df = df.loc[test_idx].copy()
     predictions_df['real_value'] = y_test
     predictions_df['prediction'] = pred_series
     predictions_df['anomaly_score'] = score_series
-    predictions_df['threshold'] = threshold
-
-    safe_threshold_name = str(threshold).replace('.', '_')
+    predictions_df['ablation_run'] = run_name
 
     predictions_df.to_csv(
-        f'predictions_threshold_{safe_threshold_name}.csv',
+        f'predictions_{run_name}.csv',
         index=False
     )
 
-    # Keep evaluate.py working with the default 0.50 threshold.
-    if threshold == DEFAULT_THRESHOLD:
+    # Keep evaluate.py working on the baseline run.
+    if run_name == 'baseline':
         predictions_df.to_csv(
             'predictions.csv',
             index=False
         )
 
+    # Save feature importances.
+    if hasattr(model, 'feature_importances_'):
+        feature_importance = pd.DataFrame({
+            'feature': X_run.columns,
+            'importance': model.feature_importances_
+        })
+
+        feature_importance = feature_importance.sort_values(
+            by='importance',
+            ascending=False
+        )
+
+        feature_importance.to_csv(
+            f'feature_importance_{run_name}.csv',
+            index=False
+        )
+
+        # Keep your normal baseline feature importance file.
+        if run_name == 'baseline':
+            feature_importance.to_csv(
+                'feature_importance.csv',
+                index=False
+            )
+
 
 # ---------------------------------------------------------------------
-# Save feature importance
+# Save and print ablation results
 # ---------------------------------------------------------------------
 
-if hasattr(model, 'feature_importances_'):
-    feature_importance = pd.DataFrame({
-        'feature': X_full.columns,
-        'importance': model.feature_importances_
-    })
+ablation_df = pd.DataFrame(ablation_results)
+ablation_df.to_csv('ablation_results.csv', index=False)
 
-    feature_importance = feature_importance.sort_values(
-        by='importance',
-        ascending=False
-    )
-
-    feature_importance.to_csv(
-        'feature_importance.csv',
-        index=False
-    )
-
-
-# ---------------------------------------------------------------------
-# Save and print threshold results
-# ---------------------------------------------------------------------
-
-threshold_df = pd.DataFrame(threshold_results)
-threshold_df.to_csv('threshold_results.csv', index=False)
-
-print('\nTHRESHOLD RESULTS')
+print('\nABLATION RESULTS')
 print(
-    threshold_df[
+    ablation_df[
         [
-            'threshold',
+            'run_name',
             'accuracy',
-            'precision',
-            'f1',
             'false_positives',
             'false_negatives',
             'anomaly_recall',
             'oscillation_recall',
             'current_osc_recall',
             'voltage_osc_recall',
+            'num_features_used',
+            'num_features_removed',
         ]
     ]
 )

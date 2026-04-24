@@ -1,4 +1,4 @@
-import random, math, statistics
+import random, math
 import pandas as pd
 
 rows = []
@@ -21,17 +21,8 @@ sensor_noise = {
     'vibration': (0,0.1), 
     'flow_rate': (0,0.05), 
     'voltage': (0.5,2), 
-    'current': (0,2)
+    'current': (0,1.0)
     }
-
-sensor_drift_rate = {
-    'temperature': (0.1, 0.2),
-    'pressure': (0.12, 0.25),
-    'vibration': (0.04, 0.08),
-    'flow_rate': (0.01, 0.02),
-    'voltage': (0.1, 0.22),
-    'current': (0.12, 0.25)
-}
 
 sensor_drift_noise = {
     'temperature': 0.15,
@@ -43,12 +34,48 @@ sensor_drift_noise = {
 }
 
 sensor_drift_cap_pct = {
-    'temperature': (0.20, 0.35),
-    'pressure': (0.20, 0.35),
-    'vibration': (0.20, 0.35),
-    'flow_rate': (0.20, 0.35),
-    'voltage': (0.20, 0.35),
-    'current': (0.20, 0.35)
+    'temperature': (0.30, 0.5),
+    'pressure': (0.25, 0.45),
+    'vibration': (0.25, 0.5),
+    'flow_rate': (0.25, 0.45),
+    'voltage': (0.25, 0.45),
+    'current': (0.25, 0.5)
+}
+
+sensor_osc_noise = {
+    'temperature': 2.2,
+    'pressure': 2.2,
+    'vibration': 0.45,
+    'flow_rate': 0.09,
+    'voltage': 0.85,
+    'current': 1.0
+}
+
+sensor_osc_amp_pct = {
+    'temperature': 0.20,
+    'pressure': 0.20,
+    'vibration': 0.20,
+    'flow_rate': 0.20,
+    'voltage': 0.26,
+    'current': 0.20,
+}
+
+sensor_osc_phase_jitter = {
+    'temperature': 0.08,
+    'pressure': 0.08,
+    'vibration': 0.08,
+    'flow_rate': 0.08,
+    'voltage': 0.08,
+    'current': 0.08,
+}
+
+sensor_osc_phase_step_range = {
+    'temperature': (0.55, 0.75),
+    'pressure': (0.55, 0.75),
+    'vibration': (0.55, 0.75),
+    'flow_rate': (0.55, 0.75),
+    'voltage': (0.60, 0.66),
+    'current': (0.55, 0.75),
 }
 
 anomaly_probability = 0.01
@@ -63,7 +90,9 @@ anomaly_duration = {
     }
 
 seed = random.randint(1, 10000)
-random.seed(seed)
+fixed_seed = 295
+random.seed(fixed_seed)
+print(f'Seed: {fixed_seed}')
 
 # creates and returns a machine state independently of the current machine states
 def init_machine():
@@ -75,13 +104,16 @@ def init_machine():
         'target_sensor': 'none', 
         'is_anomaly': {s: 0 for s in sensors},
         
-        'drift_rate': 0,
-        'drift_direction': 0,
+        'drift_rate': None,
+        'drift_direction': None,
         'drift_target': None,
+        
         'stuck_value': None,
+        
         'osc_center': None,
         'osc_amplitude': None,
-        'osc_phase': 0
+        'osc_phase': 0,
+        'osc_phase_step': None
     }
     
 #instantiate machines
@@ -116,8 +148,11 @@ def drift(previous_value, machine, sensor):
         return max(candidate, machine['drift_target'])
 
 def oscillation(machine, sensor):
-    noise = random.uniform(-(sensor_noise[sensor][1]), sensor_noise[sensor][1])
-    machine['osc_phase'] += 0.3
+    noise = random.uniform(-(sensor_osc_noise[sensor]), sensor_osc_noise[sensor])
+    machine['osc_phase'] += (
+    machine['osc_phase_step']
+    + random.uniform(-sensor_osc_phase_jitter[sensor], sensor_osc_phase_jitter[sensor])
+    )
     return machine['osc_center'] + machine['osc_amplitude'] * math.sin(machine['osc_phase']) + noise
 
 def stuck_sensor(machine):
@@ -141,12 +176,13 @@ def get_drift_direction(machine, sensor):
     upper_bound = hi * 1.5
     span = upper_bound - lower_bound
     position = (machine['values'][sensor] - lower_bound) / span
+    
     if (position >= 0.8):
         return upper_bound, lower_bound, -1
     elif (position <= 0.2):
         return upper_bound, lower_bound, 1
     else:
-        return random.choice([-1, 1])
+        return upper_bound, lower_bound, random.choice([-1, 1])
 
 num_timesteps = 5000
 
@@ -182,7 +218,7 @@ for step in range(num_timesteps):
                 total_change = min(desired_total_change, available_room)
                 
                 machine['drift_target'] = start_value + (machine['drift_direction'] * total_change)
-                machine['drift_rate'] = random.uniform(sensor_drift_rate[sensor][0], sensor_drift_rate[sensor][1])
+                machine['drift_rate'] = total_change / machine['remaining_duration']
             
             if machine['anomaly_type'] == 'stuck_sensor':
                 machine['stuck_value'] = machine['values'][sensor]
@@ -190,8 +226,9 @@ for step in range(num_timesteps):
             if machine['anomaly_type'] == 'oscillation':
                 lo, hi = sensor_ranges[sensor]
                 machine['osc_center'] = machine['values'][sensor]
-                machine['osc_amplitude'] = 0.2*(hi-lo)
-                machine['osc_phase'] = 0
+                machine['osc_amplitude'] = sensor_osc_amp_pct[sensor] * (hi - lo)
+                machine['osc_phase'] = random.uniform(0, 6.28)
+                machine['osc_phase_step'] = random.uniform(*sensor_osc_phase_step_range[sensor])
                     
         for sensor in sensors:
             if machine['mode'] == 'ANOMALY' and sensor == machine['target_sensor']:
@@ -248,9 +285,16 @@ for step in range(num_timesteps):
                 machine['anomaly_type'] = 'none'
                 machine['target_sensor'] = 'none'
                 
-                machine['drift_rate'] = 0
-                machine['drift_direction'] = 0
-                machine['drift_target'] = 0
+                machine['drift_rate'] = None
+                machine['drift_direction'] = None
+                machine['drift_target'] = None
+                
+                machine['osc_center'] = None
+                machine['osc_amplitude'] = None
+                machine['osc_phase'] = 0
+                machine['osc_phase_step'] = None
+                
+                machine['stuck_value'] = None
                 
                 for s in sensors:
                     machine['is_anomaly'][s] = 0

@@ -35,7 +35,8 @@ def plot_segments(segmented_df, value_col):
 df = pd.read_csv('sensor_data_raw.csv')
 
 for sensor in ['temperature', 'voltage', 'current']:
-    filtered, summary = build_segments(df, 'drift', sensor)
-    print(f'\n{sensor.upper()} DRIFT')
+    filtered, summary = build_segments(df, 'oscillation', sensor)
+    print(f'\n{sensor.upper()} OSCILLATION')
     print(summary)
     plot_segments(filtered, sensor)
+    
