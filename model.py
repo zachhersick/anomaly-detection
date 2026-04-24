@@ -1,82 +1,339 @@
+import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+
 from sklearn import metrics
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 
-med_weights = ['spike', 'drop', 'stuck_sensor', 'impossible_value']
 
-def build_sample_weights(training_rows):
-    weights = []
-    for i, row in training_rows.iterrows():
-        if row['anomaly_type'] == 'none':
-            weights.append(1)
-        elif row['anomaly_type'] in med_weights:
-            weights.append(1)
-        elif row['anomaly_type'] == 'oscillation':
-            weights.append(2)
-        elif row['anomaly_type'] == 'drift':
-            weights.append(3)
-        else:
-            raise ValueError('bad label')
-    return weights
+# ---------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------
 
-def summarize_weights(training_rows, weights):
-    tr_copy = training_rows.copy()
-    tr_copy['weight'] = weights
-    grouped = tr_copy.groupby('anomaly_type')
-    for anomaly_type, df in grouped:
-        print(f"anomaly_type: {anomaly_type}")
-        print(f"rows: {len(df)}")
-        print(f"weights: {df['weight'].unique()}")
-        print('------------------')
+INPUT_CSV = 'sensor_data_features.csv'
 
-df = pd.read_csv('sensor_data_features.csv')
+LABEL_COL = 'any_anomaly'
 
-meta_cols = ['step', 'machine_id', 'target_sensor']
-label_cols = [
-            'any_anomaly', 'anomaly_type', 'temperature_anomaly', 
-            'vibration_anomaly', 'flow_rate_anomaly', 'pressure_anomaly', 
-            'current_anomaly', 'voltage_anomaly'
-            ]
+RANDOM_STATE = 42
+TEST_SIZE = 0.2
 
-metadata = df[['anomaly_type']].copy()
 
-y = df['any_anomaly']
-X = df.drop(columns=meta_cols + label_cols)
+# ---------------------------------------------------------------------
+# Ablation groups
+# ---------------------------------------------------------------------
 
-split_index = int(0.8*len(df))
+ABLATION_GROUPS = {
+    'lag_autocorr': [
+        '_lag_5_autocorr',
+        '_lag_10_autocorr',
+    ],
+    'zero_cross': [
+        '_centered_zero_cross_count_10',
+        '_centered_zero_cross_count_20',
+    ],
+    'center_balance': [
+        '_center_balance_10',
+        '_center_balance_20',
+    ],
+    'dir_imbalance': [
+        '_dir_imbalance_10',
+        '_dir_imbalance_20',
+    ],
+    'trend_ratio': [
+        '_trend_ratio_10',
+        '_trend_ratio_25',
+    ],
+}
 
-X_train = X[:split_index]
-y_train = y[:split_index]
+ABLATION_RUNS = {
+    'baseline': [],
+    'remove_lag_autocorr': ABLATION_GROUPS['lag_autocorr'],
+    'remove_zero_cross': ABLATION_GROUPS['zero_cross'],
+    'remove_center_balance': ABLATION_GROUPS['center_balance'],
+    'remove_dir_imbalance': ABLATION_GROUPS['dir_imbalance'],
+    'remove_trend_ratio': ABLATION_GROUPS['trend_ratio'],
+}
 
-X_test = X[split_index:]
-y_test = y[split_index:]
 
-meta_train = metadata[:split_index]
-meta_test = metadata[split_index:]
+# ---------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------
 
-weights = build_sample_weights(meta_train)
-print(len(X_train))
-print(len(weights))
-summarize_weights(meta_train, weights)
+def find_cols_with_suffixes(columns, suffixes):
+    cols_to_drop = []
 
-df_test = df.iloc[split_index:].copy()
+    for col in columns:
+        for suffix in suffixes:
+            if col.endswith(suffix):
+                cols_to_drop.append(col)
+                break
 
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train, sample_weight=weights)
+    return cols_to_drop
 
-importances_df = pd.DataFrame({
-    'feature': X.columns,
-    'importance': model.feature_importances_
-})
-importances_df = importances_df.sort_values(
-    by='importance',
-    ascending=False
+
+def make_model():
+    return RandomForestClassifier(
+        n_estimators=300,
+        random_state=RANDOM_STATE,
+        class_weight='balanced',
+        n_jobs=-1
+    )
+
+
+def safe_recall(correct, total):
+    if total == 0:
+        return np.nan
+    return correct / total
+
+
+def evaluate_predictions(run_name, y_test, pred_series, meta_test):
+    cm = metrics.confusion_matrix(y_test, pred_series, labels=[0, 1])
+    tn, fp, fn, tp = cm.ravel()
+
+    anomaly_recall = safe_recall(tp, tp + fn)
+
+    osc_mask = (
+        (y_test == 1) &
+        (meta_test['anomaly_type'] == 'oscillation')
+    )
+
+    current_osc_mask = (
+        osc_mask &
+        (meta_test['target_sensor'] == 'current')
+    )
+
+    voltage_osc_mask = (
+        osc_mask &
+        (meta_test['target_sensor'] == 'voltage')
+    )
+
+    osc_total = osc_mask.sum()
+    osc_correct = ((pred_series == 1) & osc_mask).sum()
+
+    current_osc_total = current_osc_mask.sum()
+    current_osc_correct = ((pred_series == 1) & current_osc_mask).sum()
+
+    voltage_osc_total = voltage_osc_mask.sum()
+    voltage_osc_correct = ((pred_series == 1) & voltage_osc_mask).sum()
+
+    return {
+        'run_name': run_name,
+
+        'accuracy': metrics.accuracy_score(y_test, pred_series),
+
+        'true_negatives': tn,
+        'false_positives': fp,
+        'false_negatives': fn,
+        'true_positives': tp,
+
+        'anomaly_recall': anomaly_recall,
+
+        'oscillation_correct': osc_correct,
+        'oscillation_total': osc_total,
+        'oscillation_recall': safe_recall(osc_correct, osc_total),
+
+        'current_osc_correct': current_osc_correct,
+        'current_osc_total': current_osc_total,
+        'current_osc_recall': safe_recall(current_osc_correct, current_osc_total),
+
+        'voltage_osc_correct': voltage_osc_correct,
+        'voltage_osc_total': voltage_osc_total,
+        'voltage_osc_recall': safe_recall(voltage_osc_correct, voltage_osc_total),
+    }
+
+
+# ---------------------------------------------------------------------
+# Load data
+# ---------------------------------------------------------------------
+
+df = pd.read_csv(INPUT_CSV)
+
+df = df.replace([np.inf, -np.inf], np.nan)
+df = df.dropna().copy()
+
+if LABEL_COL not in df.columns:
+    raise ValueError(f'Missing label column: {LABEL_COL}')
+
+
+# ---------------------------------------------------------------------
+# Build X, y, and metadata
+# ---------------------------------------------------------------------
+
+metadata_cols = [
+    'step',
+    'timestamp',
+    'machine_id',
+    'anomaly_type',
+    'target_sensor',
+]
+
+non_feature_cols = [
+    'step',
+    'timestamp',
+    'machine_id',
+    LABEL_COL,
+    'anomaly_type',
+    'target_sensor',
+]
+
+# Remove per-sensor label columns from X.
+for col in df.columns:
+    if col.endswith('_anomaly'):
+        non_feature_cols.append(col)
+
+non_feature_cols = [
+    col for col in non_feature_cols
+    if col in df.columns
+]
+
+metadata_cols = [
+    col for col in metadata_cols
+    if col in df.columns
+]
+
+y = df[LABEL_COL]
+X_full = df.drop(columns=non_feature_cols)
+
+# Keep only numeric features.
+X_full = X_full.select_dtypes(include=[np.number])
+
+meta = df[metadata_cols].copy()
+
+
+# ---------------------------------------------------------------------
+# Train/test split
+# ---------------------------------------------------------------------
+
+train_idx, test_idx = train_test_split(
+    df.index,
+    test_size=TEST_SIZE,
+    random_state=RANDOM_STATE,
+    stratify=y
 )
 
-importances_df.to_csv('feature_importance.csv', index=False)
-predictions = model.predict(X_test)
+y_train = y.loc[train_idx]
+y_test = y.loc[test_idx]
 
-df_test['real_value'] = y_test
-df_test['prediction'] = predictions
+meta_test = meta.loc[test_idx].copy()
 
-df_test.to_csv('predictions.csv', index=False)
+
+# ---------------------------------------------------------------------
+# Run ablations
+# ---------------------------------------------------------------------
+
+ablation_results = []
+
+for run_name, suffixes_to_drop in ABLATION_RUNS.items():
+    cols_to_drop = find_cols_with_suffixes(
+        X_full.columns,
+        suffixes_to_drop
+    )
+
+    X_run = X_full.drop(columns=cols_to_drop)
+
+    X_train = X_run.loc[train_idx]
+    X_test = X_run.loc[test_idx]
+
+    model = make_model()
+    model.fit(X_train, y_train)
+
+    predictions = model.predict(X_test)
+
+    pred_series = pd.Series(
+        predictions,
+        index=test_idx,
+        name='prediction'
+    )
+
+    if hasattr(model, 'predict_proba'):
+        anomaly_scores = model.predict_proba(X_test)[:, 1]
+    else:
+        anomaly_scores = predictions
+
+    score_series = pd.Series(
+        anomaly_scores,
+        index=test_idx,
+        name='anomaly_score'
+    )
+
+    result = evaluate_predictions(
+        run_name=run_name,
+        y_test=y_test,
+        pred_series=pred_series,
+        meta_test=meta_test
+    )
+
+    result['num_features_used'] = X_run.shape[1]
+    result['num_features_removed'] = len(cols_to_drop)
+    result['removed_features'] = ', '.join(cols_to_drop)
+
+    ablation_results.append(result)
+
+    # Save predictions for this ablation run.
+    predictions_df = df.loc[test_idx].copy()
+    predictions_df['real_value'] = y_test
+    predictions_df['prediction'] = pred_series
+    predictions_df['anomaly_score'] = score_series
+    predictions_df['ablation_run'] = run_name
+
+    predictions_df.to_csv(
+        f'predictions_{run_name}.csv',
+        index=False
+    )
+
+    # Keep evaluate.py working on the baseline run.
+    if run_name == 'baseline':
+        predictions_df.to_csv(
+            'predictions.csv',
+            index=False
+        )
+
+    # Save feature importances.
+    if hasattr(model, 'feature_importances_'):
+        feature_importance = pd.DataFrame({
+            'feature': X_run.columns,
+            'importance': model.feature_importances_
+        })
+
+        feature_importance = feature_importance.sort_values(
+            by='importance',
+            ascending=False
+        )
+
+        feature_importance.to_csv(
+            f'feature_importance_{run_name}.csv',
+            index=False
+        )
+
+        # Keep your normal baseline feature importance file.
+        if run_name == 'baseline':
+            feature_importance.to_csv(
+                'feature_importance.csv',
+                index=False
+            )
+
+
+# ---------------------------------------------------------------------
+# Save and print ablation results
+# ---------------------------------------------------------------------
+
+ablation_df = pd.DataFrame(ablation_results)
+ablation_df.to_csv('ablation_results.csv', index=False)
+
+print('\nABLATION RESULTS')
+print(
+    ablation_df[
+        [
+            'run_name',
+            'accuracy',
+            'false_positives',
+            'false_negatives',
+            'anomaly_recall',
+            'oscillation_recall',
+            'current_osc_recall',
+            'voltage_osc_recall',
+            'num_features_used',
+            'num_features_removed',
+        ]
+    ]
+)
