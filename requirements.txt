@@ -1,3 +1,8 @@
+<<<<<<< HEAD
 numpy
 pandas
+=======
+pandas
+numpy
+>>>>>>> origin/main
 scikit-learn
