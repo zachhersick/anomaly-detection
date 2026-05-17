@@ -226,33 +226,3 @@ events_df = events_df[output_cols]
 print_event_summary(events_df)
 
 events_df.to_csv(OUTPUT_FILE, index=False)
-
-import pandas as pd
-
-alert_events_df = pd.read_csv('alert_events.csv')
-
-critical_rows = alert_events_df[
-    alert_events_df['max_severity'] == 'CRITICAL'
-]
-
-print_rows = [
-    'event_id',
-    'machine_id',
-    'sensor',
-    'anomaly_type',
-    'start_step',
-    'end_step',
-    'max_severity',
-    'first_reason',
-    'max_severity_reason'
-]
-
-missing_cols = [
-    col for col in print_rows
-    if col not in alert_events_df.columns
-]
-
-if missing_cols:
-    raise ValueError(f'Missing columns: {missing_cols}')
-
-print(critical_rows[print_rows].to_string(index=False))
