@@ -228,11 +228,6 @@ permanent_drop_cols = find_cols_with_suffixes(
 
 drop_cols = non_feature_cols + permanent_drop_cols
 
-drops_cols = [
-    col for col in drop_cols
-    if col in df.columns
-]
-
 X_full = df.drop(columns=drop_cols)
 
 # Keep only numeric features.
@@ -314,7 +309,7 @@ for threshold in THRESHOLDS:
         index=False
     )
 
-    # Keep evaluate.py working with the default 0.50 threshold.
+    # Keep evaluate.py working with the default 0.35 threshold.
     if threshold == DEFAULT_THRESHOLD:
         predictions_df.to_csv(
             'predictions.csv',
