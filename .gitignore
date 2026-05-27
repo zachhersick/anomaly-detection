@@ -4,3 +4,5 @@
 *.csv
 metrics.txt
 __pycache__/
+anomaly_detection.db
+*.db
