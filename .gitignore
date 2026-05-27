@@ -3,4 +3,5 @@
 *.mypy_cache
 *.csv
 metrics.txt
-__pycache__/
+__pycache__
+.pytest_cache
