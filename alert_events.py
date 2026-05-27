@@ -182,47 +182,60 @@ def print_event_summary(events_df):
     
     print('\nCritical Events')
     print(events_df[events_df['max_severity'] == 'CRITICAL'])
-
-alerts = load_alerts()
-
-alerts = alerts.sort_values(by=['machine_id', 'sensor', 'anomaly_type', 'step'])
-
-events = []
-current_event = None
-event_id = 1
-
-for i, row in alerts.iterrows():
-    if current_event is None:
-        current_event = start_event(row, event_id)
-        continue
     
-    if same_event(current_event, row):
-        current_event = update_event(current_event, row)
+def group_alert_events(alerts):
+    alerts = alerts.sort_values(by=['machine_id', 'sensor', 'anomaly_type', 'step'])
+
+    events = []
+    current_event = None
+    event_id = 1
+
+    for i, row in alerts.iterrows():
+        if current_event is None:
+            current_event = start_event(row, event_id)
+            continue
         
-    else:
+        if same_event(current_event, row):
+            current_event = update_event(current_event, row)
+            
+        else:
+            finalized_event = finalize_event(current_event)
+            events.append(finalized_event)
+            
+            event_id += 1
+            current_event = start_event(row, event_id)        
+        
+    if current_event is not None:
         finalized_event = finalize_event(current_event)
         events.append(finalized_event)
         
-        event_id += 1
-        current_event = start_event(row, event_id)        
+    if not events:
+        return pd.DataFrame(columns=output_cols)
+        
+    events_df = pd.DataFrame(events)
+
+    missing_output_cols = []
+
+    for col in output_cols:
+        if col not in events_df.columns:
+            missing_output_cols.append(col)
+
+    if missing_output_cols:
+        raise ValueError(f"Missing output columns: {missing_output_cols}")
+
+    events_df = events_df[output_cols]
     
-if current_event is not None:
-    finalized_event = finalize_event(current_event)
-    events.append(finalized_event)
+    return events_df
     
-events_df = pd.DataFrame(events)
+def main():
 
-missing_output_cols = []
+    alerts = load_alerts()
 
-for col in output_cols:
-    if col not in events_df.columns:
-        missing_output_cols.append(col)
+    events_df = group_alert_events(alerts)
 
-if missing_output_cols:
-    raise ValueError(f"Missing output columns: {missing_output_cols}")
+    print_event_summary(events_df)
 
-events_df = events_df[output_cols]
-
-print_event_summary(events_df)
-
-events_df.to_csv(OUTPUT_FILE, index=False)
+    events_df.to_csv(OUTPUT_FILE, index=False)
+    
+if __name__ == "__main__":
+    main()
