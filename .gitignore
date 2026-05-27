@@ -1,0 +1,6 @@
+*.env
+*.venv
+*.mypy_cache
+*.csv
+metrics.txt
+__pycache__/
