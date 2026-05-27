@@ -6,3 +6,6 @@ metrics.txt
 __pycache__/
 anomaly_detection.db
 *.db
+*.db-journal
+*.sqlite
+*.sqlite3

@@ -1,28 +1,41 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path('anomaly_detection.db')
 
-def get_connection(db_path=DB_PATH):
+DB_PATH = Path("anomaly_detection.db")
+
+
+def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
+    """
+    Create and return a SQLite database connection.
+    """
     connection = sqlite3.connect(db_path)
-    connection.execute('PRAGMA foreign_keys = ON;')
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON;")
     return connection
 
-def create_tables(connection):
+
+def create_tables(connection: sqlite3.Connection) -> None:
+    """
+    Create all database tables for storing pipeline outputs.
+    """
     cursor = connection.cursor()
-    
-    cursor.execute("""
+
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS pipeline_runs (
             run_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            created_at TEST NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             notes TEXT,
             fixed_seed INTEGER,
             model_threshold REAL,
             max_step_gap INTEGER
         );
-    """)
-    
-    cursor.execute("""
+        """
+    )
+
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS sensor_readings (
             reading_id INTEGER PRIMARY KEY AUTOINCREMENT,
             run_id INTEGER NOT NULL,
@@ -40,9 +53,11 @@ def create_tables(connection):
             target_sensor TEXT,
             FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
         );
-    """)
+        """
+    )
 
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS model_predictions (
             prediction_id INTEGER PRIMARY KEY AUTOINCREMENT,
             run_id INTEGER NOT NULL,
@@ -56,12 +71,14 @@ def create_tables(connection):
             target_sensor TEXT,
             FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
         );
-    """)
+        """
+    )
 
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS row_alerts (
-            alert_id INTEGER PRIMARY KEY,
             run_id INTEGER NOT NULL,
+            alert_id INTEGER NOT NULL,
             step INTEGER NOT NULL,
             machine_id INTEGER NOT NULL,
             sensor TEXT NOT NULL,
@@ -74,14 +91,17 @@ def create_tables(connection):
             status TEXT,
             anomaly_type TEXT,
             real_value INTEGER,
+            PRIMARY KEY (run_id, alert_id),
             FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
         );
-    """)
+        """
+    )
 
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS alert_events (
-            event_id INTEGER NOT NULL,
             run_id INTEGER NOT NULL,
+            event_id INTEGER NOT NULL,
             machine_id INTEGER NOT NULL,
             sensor TEXT NOT NULL,
             anomaly_type TEXT,
@@ -101,16 +121,19 @@ def create_tables(connection):
             PRIMARY KEY (run_id, event_id),
             FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
         );
-    """)
+        """
+    )
 
     connection.commit()
-    
-def main():
+
+
+def main() -> None:
     connection = get_connection()
     create_tables(connection)
     connection.close()
-    
-    print(f'Database initialized: {DB_PATH}')
-        
-if __name__ == '__main__':
+
+    print(f"Database initialized: {DB_PATH}")
+
+
+if __name__ == "__main__":
     main()
