@@ -304,10 +304,10 @@ for threshold in THRESHOLDS:
 
     safe_threshold_name = str(threshold).replace('.', '_')
 
-    predictions_df.to_csv(
-        f'predictions_threshold_{safe_threshold_name}.csv',
-        index=False
-    )
+    # predictions_df.to_csv(
+    #     f'predictions_threshold_{safe_threshold_name}.csv',
+    #     index=False
+    # )
 
     # Keep evaluate.py working with the default 0.35 threshold.
     if threshold == DEFAULT_THRESHOLD:
