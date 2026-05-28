@@ -1,4 +1,5 @@
 # Industrial Anomaly Detection and Alerting Pipeline
+![CI](https://github.com/zachhersick/anomaly-detection/actions/workflows/ci.yml/badge.svg)
 
 An end-to-end machine learning system for simulated industrial sensor anomaly detection.
 

@@ -9,3 +9,5 @@ anomaly_detection.db
 *.db-journal
 *.sqlite
 *.sqlite3
+__pycache__
+.pytest_cache
