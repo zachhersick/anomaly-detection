@@ -3,5 +3,11 @@
 *.mypy_cache
 *.csv
 metrics.txt
+__pycache__/
+anomaly_detection.db
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
 __pycache__
 .pytest_cache
