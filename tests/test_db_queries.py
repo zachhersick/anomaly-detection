@@ -13,6 +13,7 @@ from db_queries import (
     get_row_alerts_for_event,
     get_sensor_readings_for_machine,
     get_predictions_for_run,
+    run_exists,
 )
 
 
@@ -445,3 +446,16 @@ def test_get_predictions_for_run_filters_by_run_and_limit(temp_connection):
     assert len(rows) == 2
     assert [row["step"] for row in rows] == [1, 2]
     assert all(row["run_id"] == run_id_1 for row in rows)
+    
+def test_run_exists_returns_false_when_run_missing(temp_connection):
+    result = run_exists(temp_connection, run_id=999)
+
+    assert result is False
+
+
+def test_run_exists_returns_true_when_run_exists(temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    result = run_exists(temp_connection, run_id)
+
+    assert result is True

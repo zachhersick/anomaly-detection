@@ -500,3 +500,27 @@ def test_read_predictions_for_run(client, temp_connection):
     assert len(data) == 2
     assert returned_steps == [1, 2]
     assert all(prediction["run_id"] == run_id_1 for prediction in data)
+    
+def test_read_alert_events_returns_404_when_run_missing(client):
+    response = client.get("/runs/999/events")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Pipeline run not found"
+    
+def test_read_predictions_returns_404_when_run_missing(client):
+    response = client.get("/runs/999/predictions")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Pipeline run not found"
+    
+def test_read_sensor_readings_returns_404_when_run_missing(client):
+    response = client.get("/runs/999/machines/1/readings")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Pipeline run not found"
+    
+def test_read_row_alerts_returns_404_when_run_missing(client):
+    response = client.get("/runs/999/events/1/alerts")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Pipeline run not found"
