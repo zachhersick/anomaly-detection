@@ -218,3 +218,285 @@ def test_read_critical_alert_events_for_run(client, temp_connection):
     assert len(data) == 1
     assert data[0]["event_id"] == 2
     assert data[0]["max_severity"] == "CRITICAL"
+    
+def test_read_row_alerts_for_event(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    events = pd.DataFrame(
+        [
+            {
+                "event_id": 1,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "anomaly_type": "spike",
+                "start_step": 10,
+                "end_step": 12,
+                "duration": 3,
+                "alert_count": 3,
+                "max_severity": "CRITICAL",
+                "status": "open",
+            }
+        ]
+    )
+
+    alerts = pd.DataFrame(
+        [
+            {
+                "alert_id": 1,
+                "step": 9,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "sensor_value": 99.0,
+                "prediction": 1,
+                "anomaly_score": 0.70,
+                "severity": "WARNING",
+                "alert_type": "model_anomaly",
+                "reason": "Before event window",
+                "status": "open",
+                "anomaly_type": "spike",
+                "real_value": 1,
+            },
+            {
+                "alert_id": 2,
+                "step": 10,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "sensor_value": 105.0,
+                "prediction": 1,
+                "anomaly_score": 0.90,
+                "severity": "CRITICAL",
+                "alert_type": "model_and_threshold",
+                "reason": "Inside event window",
+                "status": "open",
+                "anomaly_type": "spike",
+                "real_value": 1,
+            },
+            {
+                "alert_id": 3,
+                "step": 11,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "sensor_value": 106.0,
+                "prediction": 1,
+                "anomaly_score": 0.91,
+                "severity": "CRITICAL",
+                "alert_type": "model_and_threshold",
+                "reason": "Inside event window",
+                "status": "open",
+                "anomaly_type": "spike",
+                "real_value": 1,
+            },
+            {
+                "alert_id": 4,
+                "step": 12,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "sensor_value": 107.0,
+                "prediction": 1,
+                "anomaly_score": 0.92,
+                "severity": "CRITICAL",
+                "alert_type": "model_and_threshold",
+                "reason": "Inside event window",
+                "status": "open",
+                "anomaly_type": "spike",
+                "real_value": 1,
+            },
+            {
+                "alert_id": 5,
+                "step": 13,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "sensor_value": 101.0,
+                "prediction": 1,
+                "anomaly_score": 0.72,
+                "severity": "WARNING",
+                "alert_type": "model_anomaly",
+                "reason": "After event window",
+                "status": "open",
+                "anomaly_type": "spike",
+                "real_value": 1,
+            },
+        ]
+    )
+
+    load_dataframe_to_table(temp_connection, events, "alert_events", run_id)
+    load_dataframe_to_table(temp_connection, alerts, "row_alerts", run_id)
+
+    response = client.get(f"/runs/{run_id}/events/1/alerts")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_steps = [alert["step"] for alert in data]
+
+    assert returned_steps == [10, 11, 12]
+    assert all(alert["run_id"] == run_id for alert in data)
+    assert all(alert["machine_id"] == 1 for alert in data)
+    assert all(alert["sensor"] == "temperature" for alert in data)
+    
+def test_read_sensor_readings_for_machine(client, temp_connection):
+    run_id_1 = insert_pipeline_run(temp_connection)
+    run_id_2 = insert_pipeline_run(temp_connection)
+
+    run_1_readings = pd.DataFrame(
+        [
+            {
+                "timestamp": "2026-01-01 00:00:01",
+                "step": 1,
+                "machine_id": 1,
+                "temperature": 70.0,
+                "pressure": 50.0,
+                "vibration": 2.0,
+                "flow_rate": 1.0,
+                "voltage": 120.0,
+                "current": 10.0,
+                "is_anomaly": 0,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "timestamp": "2026-01-01 00:00:02",
+                "step": 2,
+                "machine_id": 1,
+                "temperature": 71.0,
+                "pressure": 51.0,
+                "vibration": 2.1,
+                "flow_rate": 1.1,
+                "voltage": 121.0,
+                "current": 11.0,
+                "is_anomaly": 0,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "timestamp": "2026-01-01 00:00:03",
+                "step": 3,
+                "machine_id": 1,
+                "temperature": 72.0,
+                "pressure": 52.0,
+                "vibration": 2.2,
+                "flow_rate": 1.2,
+                "voltage": 122.0,
+                "current": 12.0,
+                "is_anomaly": 0,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "timestamp": "2026-01-01 00:00:01",
+                "step": 1,
+                "machine_id": 2,
+                "temperature": 80.0,
+                "pressure": 60.0,
+                "vibration": 3.0,
+                "flow_rate": 1.5,
+                "voltage": 125.0,
+                "current": 15.0,
+                "is_anomaly": 0,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+        ]
+    )
+
+    run_2_readings = pd.DataFrame(
+        [
+            {
+                "timestamp": "2026-01-01 00:00:01",
+                "step": 1,
+                "machine_id": 1,
+                "temperature": 90.0,
+                "pressure": 70.0,
+                "vibration": 4.0,
+                "flow_rate": 1.8,
+                "voltage": 127.0,
+                "current": 17.0,
+                "is_anomaly": 1,
+                "anomaly_type": "spike",
+                "target_sensor": "temperature",
+            }
+        ]
+    )
+
+    load_dataframe_to_table(temp_connection, run_1_readings, "sensor_readings", run_id_1)
+    load_dataframe_to_table(temp_connection, run_2_readings, "sensor_readings", run_id_2)
+
+    response = client.get(f"/runs/{run_id_1}/machines/1/readings?limit=2")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_steps = [reading["step"] for reading in data]
+
+    assert len(data) == 2
+    assert returned_steps == [1, 2]
+    assert all(reading["run_id"] == run_id_1 for reading in data)
+    assert all(reading["machine_id"] == 1 for reading in data)
+    
+def test_read_predictions_for_run(client, temp_connection):
+    run_id_1 = insert_pipeline_run(temp_connection)
+    run_id_2 = insert_pipeline_run(temp_connection)
+
+    run_1_predictions = pd.DataFrame(
+        [
+            {
+                "step": 1,
+                "machine_id": 1,
+                "real_value": 0,
+                "prediction": 0,
+                "anomaly_score": 0.10,
+                "threshold": 0.35,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "step": 2,
+                "machine_id": 1,
+                "real_value": 1,
+                "prediction": 1,
+                "anomaly_score": 0.90,
+                "threshold": 0.35,
+                "anomaly_type": "spike",
+                "target_sensor": "temperature",
+            },
+            {
+                "step": 3,
+                "machine_id": 2,
+                "real_value": 0,
+                "prediction": 0,
+                "anomaly_score": 0.20,
+                "threshold": 0.35,
+                "anomaly_type": "normal",
+                "target_sensor": "pressure",
+            },
+        ]
+    )
+
+    run_2_predictions = pd.DataFrame(
+        [
+            {
+                "step": 1,
+                "machine_id": 1,
+                "real_value": 1,
+                "prediction": 1,
+                "anomaly_score": 0.95,
+                "threshold": 0.35,
+                "anomaly_type": "drop",
+                "target_sensor": "current",
+            }
+        ]
+    )
+
+    load_dataframe_to_table(temp_connection, run_1_predictions, "model_predictions", run_id_1)
+    load_dataframe_to_table(temp_connection, run_2_predictions, "model_predictions", run_id_2)
+
+    response = client.get(f"/runs/{run_id_1}/predictions?limit=2")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_steps = [prediction["step"] for prediction in data]
+
+    assert len(data) == 2
+    assert returned_steps == [1, 2]
+    assert all(prediction["run_id"] == run_id_1 for prediction in data)
