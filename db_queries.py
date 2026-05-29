@@ -153,3 +153,20 @@ def get_predictions_for_run(conn, run_id, limit=None):
         , (run_id, limit, )).fetchall()
     
     return rows
+
+def run_exists(conn, run_id):
+    """
+    Return True if a pipeline run exists.
+    Return False otherwise.
+    """
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM pipeline_runs
+        WHERE run_id = ?
+        LIMIT 1
+        """,
+        (run_id,),
+    ).fetchone()
+
+    return row is not None

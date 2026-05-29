@@ -10,6 +10,7 @@ from db_queries import (
     get_row_alerts_for_event,
     get_sensor_readings_for_machine,
     get_predictions_for_run,
+    run_exists,
 )
 
 from schemas import (
@@ -19,7 +20,7 @@ from schemas import (
     AlertEventResponse,
     RowAlertResponse,
     SensorReadingResponse,
-    PredictionResponse
+    PredictionResponse,
 )
 
 
@@ -95,6 +96,8 @@ def read_alert_events_for_run(
     """
     Return grouped alert events for one pipeline run.
     """
+    ensure_run_exists(conn, run_id)
+    
     rows = get_alert_events_for_run(conn, run_id)
     return rows_to_dicts(rows)
 
@@ -107,6 +110,8 @@ def read_critical_alert_events_for_run(
     """
     Return critical grouped alert events for one pipeline run.
     """
+    ensure_run_exists(conn, run_id)
+    
     rows = get_critical_alert_events(conn, run_id)
     return rows_to_dicts(rows)
 
@@ -120,6 +125,8 @@ def read_row_alerts_for_event(
     """
     Return individual row alerts inside one grouped alert event.
     """
+    ensure_run_exists(conn, run_id)
+    
     rows = get_row_alerts_for_event(conn, run_id, event_id)
     return rows_to_dicts(rows)
 
@@ -134,6 +141,8 @@ def read_sensor_readings_for_machine(
     """
     Return sensor readings for one machine in one run.
     """
+    ensure_run_exists(conn, run_id)
+        
     rows = get_sensor_readings_for_machine(
         conn=conn,
         run_id=run_id,
@@ -153,6 +162,8 @@ def read_predictions_for_run(
     """
     Return model predictions for one run.
     """
+    ensure_run_exists(conn, run_id)
+    
     rows = get_predictions_for_run(
         conn=conn,
         run_id=run_id,
@@ -160,3 +171,9 @@ def read_predictions_for_run(
     )
 
     return rows_to_dicts(rows)
+
+def ensure_run_exists(conn, run_id: int):
+    response = run_exists(conn, run_id)
+    
+    if response == False:
+        raise HTTPException(status_code=404, detail="Pipeline run not found")
