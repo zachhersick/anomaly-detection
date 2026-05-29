@@ -12,6 +12,16 @@ from db_queries import (
     get_predictions_for_run,
 )
 
+from schemas import (
+    HealthResponse,
+    PipelineRunResponse,
+    LatestRunResponse,
+    AlertEventResponse,
+    RowAlertResponse,
+    SensorReadingResponse,
+    PredictionResponse
+)
+
 
 app = FastAPI(
     title="Industrial Anomaly Detection API",
@@ -47,7 +57,7 @@ def rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict]:
     return [row_to_dict(row) for row in rows]
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 def health_check():
     """
     Return basic API health status.
@@ -55,7 +65,7 @@ def health_check():
     return {"status": "ok"}
 
 
-@app.get("/runs")
+@app.get("/runs", response_model=list[PipelineRunResponse])
 def read_pipeline_runs(conn=Depends(get_db_connection)):
     """
     Return all stored pipeline runs, newest first.
@@ -64,7 +74,7 @@ def read_pipeline_runs(conn=Depends(get_db_connection)):
     return rows_to_dicts(rows)
 
 
-@app.get("/runs/latest")
+@app.get("/runs/latest", response_model=LatestRunResponse)
 def read_latest_run(conn=Depends(get_db_connection)):
     """
     Return the latest pipeline run_id.
@@ -77,7 +87,7 @@ def read_latest_run(conn=Depends(get_db_connection)):
     return {"run_id": latest_run_id}
 
 
-@app.get("/runs/{run_id}/events")
+@app.get("/runs/{run_id}/events", response_model=list[AlertEventResponse])
 def read_alert_events_for_run(
     run_id: int,
     conn=Depends(get_db_connection),
@@ -89,7 +99,7 @@ def read_alert_events_for_run(
     return rows_to_dicts(rows)
 
 
-@app.get("/runs/{run_id}/events/critical")
+@app.get("/runs/{run_id}/events/critical", response_model=list[AlertEventResponse])
 def read_critical_alert_events_for_run(
     run_id: int,
     conn=Depends(get_db_connection),
@@ -101,7 +111,7 @@ def read_critical_alert_events_for_run(
     return rows_to_dicts(rows)
 
 
-@app.get("/runs/{run_id}/events/{event_id}/alerts")
+@app.get("/runs/{run_id}/events/{event_id}/alerts", response_model=list[RowAlertResponse])
 def read_row_alerts_for_event(
     run_id: int,
     event_id: int,
@@ -114,7 +124,7 @@ def read_row_alerts_for_event(
     return rows_to_dicts(rows)
 
 
-@app.get("/runs/{run_id}/machines/{machine_id}/readings")
+@app.get("/runs/{run_id}/machines/{machine_id}/readings", response_model=list[SensorReadingResponse])
 def read_sensor_readings_for_machine(
     run_id: int,
     machine_id: int,
@@ -134,7 +144,7 @@ def read_sensor_readings_for_machine(
     return rows_to_dicts(rows)
 
 
-@app.get("/runs/{run_id}/predictions")
+@app.get("/runs/{run_id}/predictions", response_model=list[PredictionResponse])
 def read_predictions_for_run(
     run_id: int,
     limit: int | None = 100,
