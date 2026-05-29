@@ -73,7 +73,7 @@ def read_alert_events_for_run(run_id, conn=Depends(get_db_connection)):
     """
     rows = get_alert_events_for_run(conn, run_id)
     return rows_to_dicts(rows)
-
+ 
 @app.get("/runs/{run_id}/events/critical")
 def read_critical_alert_events_For_run(run_id, conn=Depends(get_db_connection)):
     """
