@@ -170,3 +170,21 @@ def run_exists(conn, run_id):
     ).fetchone()
 
     return row is not None
+
+def event_exists(conn,run_id, event_id):
+    """
+    Return True if an alert event exists.
+    Return False otherwise.
+    """
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM alert_events
+        WHERE run_id = ?
+            AND event_id = ?
+        LIMIT 1
+        """,
+        (run_id, event_id, ),
+    ).fetchone()
+
+    return row is not None

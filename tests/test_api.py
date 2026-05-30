@@ -524,3 +524,17 @@ def test_read_row_alerts_returns_404_when_run_missing(client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Pipeline run not found"
+
+def test_read_row_alerts_returns_404_when_event_missing(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/events/999/alerts")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Alert event not found"
+    
+def test_read_row_alerts_returns_404_when_run_missing_before_event_check(client):
+    response = client.get("/runs/999/events/999/alerts")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Pipeline run not found"

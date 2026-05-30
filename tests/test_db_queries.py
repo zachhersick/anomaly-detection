@@ -14,6 +14,7 @@ from db_queries import (
     get_sensor_readings_for_machine,
     get_predictions_for_run,
     run_exists,
+    event_exists,
 )
 
 
@@ -457,5 +458,52 @@ def test_run_exists_returns_true_when_run_exists(temp_connection):
     run_id = insert_pipeline_run(temp_connection)
 
     result = run_exists(temp_connection, run_id)
+
+    assert result is True
+    
+def test_event_exists_returns_false_when_event_missing(temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    result = event_exists(
+        conn=temp_connection,
+        run_id=run_id,
+        event_id=999,
+    )
+
+    assert result is False
+
+
+def test_event_exists_returns_true_when_event_exists(temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    events = pd.DataFrame(
+        [
+            {
+                "event_id": 1,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "anomaly_type": "spike",
+                "start_step": 10,
+                "end_step": 12,
+                "duration": 3,
+                "alert_count": 2,
+                "max_severity": "CRITICAL",
+                "status": "open",
+            }
+        ]
+    )
+
+    load_dataframe_to_table(
+        conn=temp_connection,
+        df=events,
+        table_name="alert_events",
+        run_id=run_id,
+    )
+
+    result = event_exists(
+        conn=temp_connection,
+        run_id=run_id,
+        event_id=1,
+    )
 
     assert result is True

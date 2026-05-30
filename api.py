@@ -11,6 +11,7 @@ from db_queries import (
     get_sensor_readings_for_machine,
     get_predictions_for_run,
     run_exists,
+    event_exists,
 )
 
 from schemas import (
@@ -126,6 +127,7 @@ def read_row_alerts_for_event(
     Return individual row alerts inside one grouped alert event.
     """
     ensure_run_exists(conn, run_id)
+    ensure_event_exists(conn, event_id, run_id)
     
     rows = get_row_alerts_for_event(conn, run_id, event_id)
     return rows_to_dicts(rows)
@@ -177,3 +179,9 @@ def ensure_run_exists(conn, run_id: int):
     
     if response == False:
         raise HTTPException(status_code=404, detail="Pipeline run not found")
+    
+def ensure_event_exists(conn, event_id, run_id: int):
+    response = event_exists(conn, run_id, event_id)
+    
+    if response == False:
+        raise HTTPException(status_code=404, detail="Alert event not found")
