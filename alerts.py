@@ -33,7 +33,6 @@ eval_cols = [
     'real_value',
     'threshold',
     '*_anomaly',
-    #engineered feature cols
 ]
 
 SEVERITY_INFO = 'INFO'
@@ -286,56 +285,79 @@ def build_alert(row, alert_id):
     return alert
 
 def print_alert_summary(alerts):
-    print('\n==============================')
-    print('ALERT SUMMARY')
-    print('==============================')
+    print("\n==============================")
+    print("ALERT SUMMARY")
+    print("==============================")
 
-    print('\nShape')
+    print("\nShape")
     print(alerts.shape)
 
-    print('\nSeverity Counts')
-    print(alerts['severity'].value_counts())
+    if alerts.empty:
+        print("\nNo alerts generated.")
+        return
 
-    print('\nAlert Type Counts')
-    print(alerts['alert_type'].value_counts())
+    print("\nSeverity Counts")
+    print(alerts["severity"].value_counts())
 
-    print('\nSensor Counts')
-    print(alerts['sensor'].value_counts())
+    print("\nAlert Type Counts")
+    print(alerts["alert_type"].value_counts())
 
-    print('\nTop Critical Alerts')
-    critical_alerts = alerts[alerts['severity'] == SEVERITY_CRITICAL]
+    print("\nSensor Counts")
+    print(alerts["sensor"].value_counts())
+
+    print("\nTop Critical Alerts")
+    critical_alerts = alerts[alerts["severity"] == SEVERITY_CRITICAL]
     print(
         critical_alerts
-        .sort_values(by='anomaly_score', ascending=False)
+        .sort_values(by="anomaly_score", ascending=False)
         .head(10)
     )
 
-df = pd.read_csv(INPUT_FILE)
+def load_predictions(input_file=INPUT_FILE):
+    df = pd.read_csv(input_file)
 
-missing_cols = [
-    col for col in req_cols
-    if col not in df.columns
-]
+    missing_cols = [
+        col for col in req_cols
+        if col not in df.columns
+    ]
 
-if missing_cols:
-    raise ValueError(f'Missing required columns: {missing_cols}')
-
-pred_anom_rows = df[
-    (df['prediction'] == 1)
-]
-
-alertsList = []
-alert_id = 1
-
-for index, row in pred_anom_rows.iterrows():
-    alert = build_alert(row, alert_id)
+    if missing_cols:
+        raise ValueError(f'Missing required columns: {missing_cols}')
     
-    if alert is not None:
-        alertsList.append(alert)
-        alert_id += 1
-    
-alerts = pd.DataFrame(alertsList)
-    
-alerts.to_csv(OUTPUT_FILE, index=False)
+    return df
 
-print_alert_summary(alerts)
+def build_alerts(predictions_df):
+    pred_anom_rows = predictions_df[
+        (predictions_df['prediction'] == 1)
+    ]
+
+    alertsList = []
+    alert_id = 1
+
+    for index, row in pred_anom_rows.iterrows():
+        alert = build_alert(row, alert_id)
+    
+        if alert is not None:
+            alertsList.append(alert)
+            alert_id += 1
+    
+    alerts = pd.DataFrame(alertsList)
+    
+    return alerts
+
+def save_alerts(alerts_df, output_file=OUTPUT_FILE):    
+    alerts_df.to_csv(output_file, index=False)
+
+def run_alert_pipeline(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
+    predictions_df = load_predictions(input_file)
+    alerts_df = build_alerts(predictions_df)
+    save_alerts(alerts_df, output_file)
+    print_alert_summary(alerts_df)
+    
+    return alerts_df
+
+def main():
+    run_alert_pipeline()
+
+if __name__ == "__main__":
+    main()
