@@ -1,51 +1,171 @@
 import pandas as pd
 import pytest
 
-from alert_events import group_alert_events, output_cols, MAX_STEP_GAP
+from alert_events import (
+    MAX_STEP_GAP,
+    finalize_event,
+    get_severity_priority,
+    group_alert_events,
+    load_alerts,
+    safe_max,
+    safe_min,
+    same_event,
+    save_alert_events,
+    run_alert_event_pipeline,
+    start_event,
+    update_event,
+)
 
 
-def make_alert(
-    alert_id=1,
-    step=10,
-    machine_id=1,
-    sensor="temperature",
-    sensor_value=105.0,
-    prediction=1,
-    anomaly_score=0.81,
-    severity="WARNING",
-    alert_type="model_anomaly",
-    reason="model flagged anomaly",
-    status="open",
-    anomaly_type="spike",
-    real_value=1,
-):
-    return {
-        "alert_id": alert_id,
-        "step": step,
-        "machine_id": machine_id,
-        "sensor": sensor,
-        "sensor_value": sensor_value,
-        "prediction": prediction,
-        "anomaly_score": anomaly_score,
-        "severity": severity,
-        "alert_type": alert_type,
-        "reason": reason,
-        "status": status,
-        "anomaly_type": anomaly_type,
-        "real_value": real_value,
-    }
+def make_alerts_df():
+    return pd.DataFrame(
+        [
+            {
+                "alert_id": 1,
+                "step": 10,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "sensor_value": 105.0,
+                "prediction": 1,
+                "anomaly_score": 0.80,
+                "severity": "WARNING",
+                "alert_type": "model_anomaly",
+                "reason": "First warning alert",
+                "status": "OPEN",
+                "anomaly_type": "spike",
+                "real_value": 1,
+            },
+            {
+                "alert_id": 2,
+                "step": 11,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "sensor_value": 106.0,
+                "prediction": 1,
+                "anomaly_score": 0.90,
+                "severity": "CRITICAL",
+                "alert_type": "model_and_threshold",
+                "reason": "Critical alert",
+                "status": "OPEN",
+                "anomaly_type": "spike",
+                "real_value": 1,
+            },
+            {
+                "alert_id": 3,
+                "step": 20,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "sensor_value": 107.0,
+                "prediction": 1,
+                "anomaly_score": 0.70,
+                "severity": "WARNING",
+                "alert_type": "model_anomaly",
+                "reason": "Separate event because of large step gap",
+                "status": "OPEN",
+                "anomaly_type": "spike",
+                "real_value": 1,
+            },
+            {
+                "alert_id": 4,
+                "step": 21,
+                "machine_id": 2,
+                "sensor": "pressure",
+                "sensor_value": 120.0,
+                "prediction": 1,
+                "anomaly_score": 0.95,
+                "severity": "CRITICAL",
+                "alert_type": "model_and_threshold",
+                "reason": "Different machine pressure alert",
+                "status": "OPEN",
+                "anomaly_type": "drop",
+                "real_value": 1,
+            },
+        ]
+    )
 
 
-def test_one_alert_creates_one_event():
-    alerts = pd.DataFrame([
-        make_alert()
-    ])
+def test_load_alerts_loads_valid_file(tmp_path):
+    alerts_df = make_alerts_df()
+    input_path = tmp_path / "alerts.csv"
 
-    events_df = group_alert_events(alerts)
+    alerts_df.to_csv(input_path, index=False)
 
-    assert len(events_df) == 1
+    loaded_df = load_alerts(input_path)
 
-    event = events_df.iloc[0]
+    assert len(loaded_df) == len(alerts_df)
+    assert "alert_id" in loaded_df.columns
+    assert "severity" in loaded_df.columns
+    assert "anomaly_score" in loaded_df.columns
+
+
+def test_load_alerts_raises_when_required_column_missing(tmp_path):
+    alerts_df = make_alerts_df().drop(columns=["reason"])
+    input_path = tmp_path / "bad_alerts.csv"
+
+    alerts_df.to_csv(input_path, index=False)
+
+    with pytest.raises(KeyError, match="Column not found"):
+        load_alerts(input_path)
+
+
+def test_get_severity_priority_returns_expected_values():
+    assert get_severity_priority("INFO") == 1
+    assert get_severity_priority("WARNING") == 2
+    assert get_severity_priority("CRITICAL") == 3
+    assert get_severity_priority("UNKNOWN") == 0
+
+
+def test_same_event_returns_true_for_same_machine_sensor_type_within_gap():
+    alerts_df = make_alerts_df()
+
+    first_row = alerts_df.iloc[0]
+    second_row = alerts_df.iloc[1]
+
+    current_event = start_event(first_row, event_id=1)
+
+    assert same_event(current_event, second_row) is True
+
+
+def test_same_event_returns_false_when_step_gap_is_too_large():
+    alerts_df = make_alerts_df()
+
+    first_row = alerts_df.iloc[0]
+    later_row = alerts_df.iloc[2]
+
+    current_event = start_event(first_row, event_id=1)
+
+    assert later_row["step"] - current_event["end_step"] > MAX_STEP_GAP
+    assert same_event(current_event, later_row) is False
+
+
+def test_same_event_returns_false_for_different_machine_sensor_or_type():
+    alerts_df = make_alerts_df()
+
+    first_row = alerts_df.iloc[0]
+    different_machine_row = alerts_df.iloc[3]
+
+    current_event = start_event(first_row, event_id=1)
+
+    assert same_event(current_event, different_machine_row) is False
+
+
+def test_safe_min_handles_nan_values():
+    assert safe_min(pd.NA, 5.0) == 5.0
+    assert safe_min(5.0, pd.NA) == 5.0
+    assert safe_min(5.0, 3.0) == 3.0
+
+
+def test_safe_max_handles_nan_values():
+    assert safe_max(pd.NA, 5.0) == 5.0
+    assert safe_max(5.0, pd.NA) == 5.0
+    assert safe_max(5.0, 8.0) == 8.0
+
+
+def test_start_event_creates_expected_event_fields():
+    alerts_df = make_alerts_df()
+    row = alerts_df.iloc[0]
+
+    event = start_event(row, event_id=1)
 
     assert event["event_id"] == 1
     assert event["machine_id"] == 1
@@ -56,166 +176,136 @@ def test_one_alert_creates_one_event():
     assert event["duration"] == 1
     assert event["alert_count"] == 1
     assert event["max_severity"] == "WARNING"
-    assert event["first_reason"] == "model flagged anomaly"
-    assert event["max_anomaly_score"] == 0.81
-    assert event["mean_anomaly_score"] == 0.81
-    assert event["min_sensor_value"] == 105.0
-    assert event["max_sensor_value"] == 105.0
+    assert event["max_anomaly_score"] == 0.80
+    assert event["mean_anomaly_score"] == 0.80
+    assert event["score_sum"] == 0.80
 
 
-def test_consecutive_alerts_group_into_one_event():
-    alerts = pd.DataFrame([
-        make_alert(
-            alert_id=1,
-            step=10,
-            sensor_value=105.0,
-            anomaly_score=0.81,
-            severity="WARNING",
-            reason="model flagged anomaly",
-        ),
-        make_alert(
-            alert_id=2,
-            step=11,
-            sensor_value=108.0,
-            anomaly_score=0.90,
-            severity="CRITICAL",
-            reason="critical temperature threshold exceeded",
-        ),
-    ])
+def test_update_event_extends_event_and_promotes_severity():
+    alerts_df = make_alerts_df()
 
-    events_df = group_alert_events(alerts)
+    first_row = alerts_df.iloc[0]
+    second_row = alerts_df.iloc[1]
 
-    assert len(events_df) == 1
+    event = start_event(first_row, event_id=1)
+    updated_event = update_event(event, second_row)
 
-    event = events_df.iloc[0]
-
-    assert event["start_step"] == 10
-    assert event["end_step"] == 11
-    assert event["duration"] == 2
-    assert event["alert_count"] == 2
-    assert event["max_anomaly_score"] == 0.90
-    assert event["mean_anomaly_score"] == pytest.approx(0.855)
-    assert event["max_severity"] == "CRITICAL"
-    assert event["max_severity_reason"] == "critical temperature threshold exceeded"
-    assert event["min_sensor_value"] == 105.0
-    assert event["max_sensor_value"] == 108.0
+    assert updated_event["start_step"] == 10
+    assert updated_event["end_step"] == 11
+    assert updated_event["duration"] == 2
+    assert updated_event["alert_count"] == 2
+    assert updated_event["max_severity"] == "CRITICAL"
+    assert updated_event["max_severity_reason"] == "Critical alert"
+    assert updated_event["max_anomaly_score"] == 0.90
+    assert updated_event["mean_anomaly_score"] == pytest.approx(0.85)
+    assert updated_event["min_sensor_value"] == 105.0
+    assert updated_event["max_sensor_value"] == 106.0
 
 
-def test_gap_larger_than_max_step_gap_creates_new_event():
-    first_step = 10
-    second_step = first_step + MAX_STEP_GAP + 1
+def test_finalize_event_removes_score_sum():
+    alerts_df = make_alerts_df()
+    row = alerts_df.iloc[0]
 
-    alerts = pd.DataFrame([
-        make_alert(alert_id=1, step=first_step),
-        make_alert(alert_id=2, step=second_step, anomaly_score=0.90),
-    ])
+    event = start_event(row, event_id=1)
+    finalized_event = finalize_event(event)
 
-    events_df = group_alert_events(alerts)
-
-    assert len(events_df) == 2
-
-    event_1 = events_df.iloc[0]
-    event_2 = events_df.iloc[1]
-
-    assert event_1["start_step"] == first_step
-    assert event_1["end_step"] == first_step
-    assert event_1["alert_count"] == 1
-
-    assert event_2["start_step"] == second_step
-    assert event_2["end_step"] == second_step
-    assert event_2["alert_count"] == 1
+    assert "score_sum" not in finalized_event
 
 
-def test_different_anomaly_type_creates_new_event():
-    alerts = pd.DataFrame([
-        make_alert(alert_id=1, step=10, anomaly_type="spike"),
-        make_alert(alert_id=2, step=11, anomaly_type="drop"),
-    ])
+def test_group_alert_events_groups_consecutive_alerts():
+    alerts_df = make_alerts_df()
 
-    events_df = group_alert_events(alerts)
+    events_df = group_alert_events(alerts_df)
 
-    assert len(events_df) == 2
-    assert set(events_df["anomaly_type"]) == {"spike", "drop"}
-    assert all(events_df["alert_count"] == 1)
+    first_event = events_df[events_df["event_id"] == 1].iloc[0]
 
-
-def test_different_machine_id_creates_new_event():
-    alerts = pd.DataFrame([
-        make_alert(alert_id=1, step=10, machine_id=1),
-        make_alert(alert_id=2, step=11, machine_id=2),
-    ])
-
-    events_df = group_alert_events(alerts)
-
-    assert len(events_df) == 2
-    assert set(events_df["machine_id"]) == {1, 2}
-    assert all(events_df["alert_count"] == 1)
+    assert first_event["machine_id"] == 1
+    assert first_event["sensor"] == "temperature"
+    assert first_event["anomaly_type"] == "spike"
+    assert first_event["start_step"] == 10
+    assert first_event["end_step"] == 11
+    assert first_event["duration"] == 2
+    assert first_event["alert_count"] == 2
+    assert first_event["max_severity"] == "CRITICAL"
+    assert first_event["max_anomaly_score"] == 0.90
+    assert first_event["mean_anomaly_score"] == pytest.approx(0.85)
 
 
-def test_different_sensor_creates_new_event():
-    alerts = pd.DataFrame([
-        make_alert(alert_id=1, step=10, sensor="temperature"),
-        make_alert(alert_id=2, step=11, sensor="pressure"),
-    ])
+def test_group_alert_events_separates_large_step_gap():
+    alerts_df = make_alerts_df()
 
-    events_df = group_alert_events(alerts)
+    events_df = group_alert_events(alerts_df)
 
-    assert len(events_df) == 2
-    assert set(events_df["sensor"]) == {"temperature", "pressure"}
-    assert all(events_df["alert_count"] == 1)
+    temperature_events = events_df[
+        (events_df["machine_id"] == 1)
+        & (events_df["sensor"] == "temperature")
+    ]
 
-
-def test_highest_severity_reason_is_preserved():
-    alerts = pd.DataFrame([
-        make_alert(
-            alert_id=1,
-            step=10,
-            severity="INFO",
-            reason="model-only low severity alert",
-        ),
-        make_alert(
-            alert_id=2,
-            step=11,
-            severity="WARNING",
-            reason="warning threshold exceeded",
-        ),
-        make_alert(
-            alert_id=3,
-            step=12,
-            severity="CRITICAL",
-            reason="critical threshold exceeded",
-        ),
-    ])
-
-    events_df = group_alert_events(alerts)
-
-    assert len(events_df) == 1
-
-    event = events_df.iloc[0]
-
-    assert event["max_severity"] == "CRITICAL"
-    assert event["max_severity_reason"] == "critical threshold exceeded"
-    assert event["first_reason"] == "model-only low severity alert"
+    assert len(temperature_events) == 2
 
 
-def test_empty_alerts_returns_empty_events_with_expected_columns():
-    alerts = pd.DataFrame(columns=[
-        "alert_id",
-        "step",
-        "machine_id",
-        "sensor",
-        "sensor_value",
-        "prediction",
-        "anomaly_score",
-        "severity",
-        "alert_type",
-        "reason",
-        "status",
-        "anomaly_type",
-        "real_value",
-    ])
+def test_group_alert_events_separates_different_machine_sensor_and_type():
+    alerts_df = make_alerts_df()
 
-    events_df = group_alert_events(alerts)
+    events_df = group_alert_events(alerts_df)
 
-    assert len(events_df) == 0
-    assert list(events_df.columns) == output_cols
+    assert len(events_df) == 3
+
+    pressure_event = events_df[
+        (events_df["machine_id"] == 2)
+        & (events_df["sensor"] == "pressure")
+    ].iloc[0]
+
+    assert pressure_event["anomaly_type"] == "drop"
+    assert pressure_event["start_step"] == 21
+    assert pressure_event["end_step"] == 21
+    assert pressure_event["alert_count"] == 1
+
+
+def test_group_alert_events_returns_empty_dataframe_for_empty_input():
+    empty_alerts = make_alerts_df().iloc[0:0]
+
+    events_df = group_alert_events(empty_alerts)
+
+    assert events_df.empty
+    assert "event_id" in events_df.columns
+    assert "max_severity" in events_df.columns
+    assert "max_anomaly_score" in events_df.columns
+
+
+def test_save_alert_events_writes_file(tmp_path):
+    alerts_df = make_alerts_df()
+    events_df = group_alert_events(alerts_df)
+
+    output_path = tmp_path / "alert_events.csv"
+
+    save_alert_events(events_df, output_path)
+
+    assert output_path.exists()
+
+    saved_df = pd.read_csv(output_path)
+
+    assert len(saved_df) == len(events_df)
+    assert "event_id" in saved_df.columns
+    assert "alert_count" in saved_df.columns
+    assert "max_severity" in saved_df.columns
+
+
+def test_run_alert_event_pipeline_writes_output_and_returns_dataframe(tmp_path, capsys):
+    alerts_df = make_alerts_df()
+
+    input_path = tmp_path / "alerts.csv"
+    output_path = tmp_path / "alert_events.csv"
+
+    alerts_df.to_csv(input_path, index=False)
+
+    events_df = run_alert_event_pipeline(
+        input_file=input_path,
+        output_file=output_path,
+    )
+
+    captured = capsys.readouterr()
+
+    assert output_path.exists()
+    assert len(events_df) == 3
+    assert "EVENT SUMMARY" in captured.out

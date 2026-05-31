@@ -46,8 +46,8 @@ output_cols = [
     'real_value',
 ]
 
-def load_alerts():
-    df = pd.read_csv(INPUT_FILE)
+def load_alerts(input_file=INPUT_FILE):
+    df = pd.read_csv(input_file)
     for col in input_req_cols:
         if col not in df.columns:
             raise KeyError(f'Column not found: {col}')
@@ -158,30 +158,34 @@ def finalize_event(event):
     return event
 
 def print_event_summary(events_df):
-    print('\n==============================')
-    print('EVENT SUMMARY')
-    print('==============================')
+    print("\n==============================")
+    print("EVENT SUMMARY")
+    print("==============================")
 
-    print('\nShape')
+    print("\nShape")
     print(events_df.shape)
 
-    print('\nMax Severity Counts')
-    print(events_df['max_severity'].value_counts())
+    if events_df.empty:
+        print("\nNo alert events generated.")
+        return
 
-    print('\nAnomaly Type Counts')
-    print(events_df['anomaly_type'].value_counts())
+    print("\nMax Severity Counts")
+    print(events_df["max_severity"].value_counts())
 
-    print('\nSensor Counts')
-    print(events_df['sensor'].value_counts())
+    print("\nAnomaly Type Counts")
+    print(events_df["anomaly_type"].value_counts())
 
-    print('\nTop 10 Longest Events')
-    print(events_df.sort_values(by='duration', ascending=False).head(10))
-    
-    print('\nTop 10 Highest Score Events')
-    print(events_df.sort_values(by='max_anomaly_score', ascending=False).head(10))
-    
-    print('\nCritical Events')
-    print(events_df[events_df['max_severity'] == 'CRITICAL'])
+    print("\nSensor Counts")
+    print(events_df["sensor"].value_counts())
+
+    print("\nTop 10 Longest Events")
+    print(events_df.sort_values(by="duration", ascending=False).head(10))
+
+    print("\nTop 10 Highest Score Events")
+    print(events_df.sort_values(by="max_anomaly_score", ascending=False).head(10))
+
+    print("\nCritical Events")
+    print(events_df[events_df["max_severity"] == "CRITICAL"])
     
 def group_alert_events(alerts):
     alerts = alerts.sort_values(by=['machine_id', 'sensor', 'anomaly_type', 'step'])
@@ -226,16 +230,24 @@ def group_alert_events(alerts):
     events_df = events_df[output_cols]
     
     return events_df
+
+def save_alert_events(events_df, output_file=OUTPUT_FILE):
+    events_df.to_csv(output_file, index=False)
     
-def main():
+def run_alert_event_pipeline(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
+    alerts_df = load_alerts(input_file)
 
-    alerts = load_alerts()
-
-    events_df = group_alert_events(alerts)
+    events_df = group_alert_events(alerts_df)
 
     print_event_summary(events_df)
 
-    events_df.to_csv(OUTPUT_FILE, index=False)
+    save_alert_events(events_df, output_file)
+    
+    return events_df
+    
+def main():
+    run_alert_event_pipeline()
+    
     
 if __name__ == "__main__":
     main()
