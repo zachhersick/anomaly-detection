@@ -11,9 +11,9 @@ from sklearn.model_selection import train_test_split
 INPUT_CSV = "sensor_data_features.csv"
 
 PREDICTIONS_OUTPUT_PATH = "predictions.csv"
-FEATURE_IMPORTANCE_OUTPUT_PATH = "feature_importance.csv"
 
 REPORTS_DIR = Path("outputs")
+FEATURE_IMPORTANCE_OUTPUT_PATH = REPORTS_DIR / "feature_importance.csv"
 THRESHOLD_RESULTS_OUTPUT_PATH = REPORTS_DIR / "threshold_results.csv"
 
 LABEL_COL = "any_anomaly"
