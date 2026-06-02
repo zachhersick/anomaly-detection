@@ -361,3 +361,87 @@ def get_run_summary(conn, run_id: int):
         "max_anomaly_score": max_anomaly_score,
         "mean_anomaly_score": mean_anomaly_score,
     }
+    
+    
+def get_anomaly_type_distribution_for_run(conn, run_id: int):
+    rows = conn.execute(
+        """
+        SELECT anomaly_type, COUNT(*) AS count
+        FROM alert_events
+        WHERE run_id = ?
+            AND anomaly_type IS NOT NULL
+        GROUP BY anomaly_type
+        ORDER BY count DESC, anomaly_type ASC
+        """,
+        (run_id,),
+    ).fetchall()
+    
+    distribution = []
+    
+    for row in rows:
+        distribution.append(
+            {
+                'anomaly_type': row['anomaly_type'],
+                'count': row['count'],
+            }
+        )
+        
+    return distribution
+
+
+def get_sensor_distribution_for_run(conn, run_id: int):
+    rows = conn.execute(
+        """
+        SELECT sensor, COUNT(*) AS count
+        FROM alert_events
+        WHERE run_id = ?
+            AND sensor IS NOT NULL
+        GROUP BY sensor
+        ORDER BY count DESC, sensor ASC
+        """,
+        (run_id,),
+    ).fetchall()
+    
+    distribution = []
+    
+    for row in rows:
+        distribution.append(
+            {
+                'sensor': row['sensor'],
+                'count': row['count'],
+            }
+        )
+        
+    return distribution
+
+
+def get_severity_distribution_for_run(conn, run_id: int):
+    rows = conn.execute(
+        """
+        SELECT max_severity, COUNT(*) as count
+        FROM alert_events
+        WHERE run_id = ?
+            AND max_severity IS NOT NULL
+        GROUP BY max_severity
+        ORDER BY
+            CASE max_severity
+                WHEN 'CRITICAL' THEN 1
+                WHEN 'WARNING' THEN 2
+                WHEN 'INFO' THEN 3
+                ELSE 4
+            END
+        """,
+        (run_id,),
+    ).fetchall()
+    
+    distribution = []
+    
+    for row in rows:
+        distribution.append(
+            {
+                'severity': row['max_severity'],
+                'count': row['count'],
+            }
+        )
+        
+    return distribution

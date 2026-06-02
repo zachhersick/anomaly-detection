@@ -121,3 +121,15 @@ class RunSummaryResponse(BaseModel):
     machines_with_alerts: int
     max_anomaly_score: float | None
     mean_anomaly_score: float | None
+    
+class AnomalyTypeDistributionResponse(BaseModel):
+    anomaly_type: str
+    count: int
+    
+class SensorDistributionResponse(BaseModel):
+    sensor: str
+    count: int
+    
+class SeverityDistributionResponse(BaseModel):
+    severity: str
+    count: int

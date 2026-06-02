@@ -1263,3 +1263,237 @@ def test_read_run_summary_returns_404_when_run_missing(client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Pipeline run not found"
+    
+
+def test_read_anomaly_type_distribution_for_run(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    events = pd.DataFrame(
+        [
+            {
+                "event_id": 1,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "anomaly_type": "spike",
+                "start_step": 10,
+                "end_step": 12,
+                "duration": 3,
+                "alert_count": 2,
+                "max_severity": "CRITICAL",
+                "status": "open",
+            },
+            {
+                "event_id": 2,
+                "machine_id": 1,
+                "sensor": "pressure",
+                "anomaly_type": "spike",
+                "start_step": 20,
+                "end_step": 22,
+                "duration": 3,
+                "alert_count": 2,
+                "max_severity": "WARNING",
+                "status": "open",
+            },
+            {
+                "event_id": 3,
+                "machine_id": 2,
+                "sensor": "vibration",
+                "anomaly_type": "drift",
+                "start_step": 30,
+                "end_step": 35,
+                "duration": 6,
+                "alert_count": 3,
+                "max_severity": "WARNING",
+                "status": "open",
+            },
+            {
+                "event_id": 4,
+                "machine_id": 2,
+                "sensor": "voltage",
+                "anomaly_type": "drop",
+                "start_step": 40,
+                "end_step": 45,
+                "duration": 6,
+                "alert_count": 3,
+                "max_severity": "INFO",
+                "status": "open",
+            },
+        ]
+    )
+
+    load_dataframe_to_table(temp_connection, events, "alert_events", run_id)
+
+    response = client.get(f"/runs/{run_id}/events/anomaly-type-distribution")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data == [
+        {"anomaly_type": "spike", "count": 2},
+        {"anomaly_type": "drift", "count": 1},
+        {"anomaly_type": "drop", "count": 1},
+    ]
+
+
+def test_read_anomaly_type_distribution_returns_404_when_run_missing(client):
+    response = client.get("/runs/999/events/anomaly-type-distribution")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Pipeline run not found"
+    
+    
+def test_read_sensor_distribution_for_run(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    events = pd.DataFrame(
+        [
+            {
+                "event_id": 1,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "anomaly_type": "spike",
+                "start_step": 10,
+                "end_step": 12,
+                "duration": 3,
+                "alert_count": 2,
+                "max_severity": "CRITICAL",
+                "status": "open",
+            },
+            {
+                "event_id": 2,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "anomaly_type": "drift",
+                "start_step": 20,
+                "end_step": 22,
+                "duration": 3,
+                "alert_count": 2,
+                "max_severity": "WARNING",
+                "status": "open",
+            },
+            {
+                "event_id": 3,
+                "machine_id": 2,
+                "sensor": "pressure",
+                "anomaly_type": "drop",
+                "start_step": 30,
+                "end_step": 35,
+                "duration": 6,
+                "alert_count": 3,
+                "max_severity": "WARNING",
+                "status": "open",
+            },
+            {
+                "event_id": 4,
+                "machine_id": 2,
+                "sensor": "vibration",
+                "anomaly_type": "oscillation",
+                "start_step": 40,
+                "end_step": 45,
+                "duration": 6,
+                "alert_count": 3,
+                "max_severity": "INFO",
+                "status": "open",
+            },
+        ]
+    )
+
+    load_dataframe_to_table(temp_connection, events, "alert_events", run_id)
+
+    response = client.get(f"/runs/{run_id}/events/sensor-distribution")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data == [
+        {"sensor": "temperature", "count": 2},
+        {"sensor": "pressure", "count": 1},
+        {"sensor": "vibration", "count": 1},
+    ]
+
+
+def test_read_sensor_distribution_returns_404_when_run_missing(client):
+    response = client.get("/runs/999/events/sensor-distribution")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Pipeline run not found"
+    
+    
+def test_read_severity_distribution_for_run(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    events = pd.DataFrame(
+        [
+            {
+                "event_id": 1,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "anomaly_type": "spike",
+                "start_step": 10,
+                "end_step": 12,
+                "duration": 3,
+                "alert_count": 2,
+                "max_severity": "WARNING",
+                "status": "open",
+            },
+            {
+                "event_id": 2,
+                "machine_id": 1,
+                "sensor": "pressure",
+                "anomaly_type": "drop",
+                "start_step": 20,
+                "end_step": 22,
+                "duration": 3,
+                "alert_count": 2,
+                "max_severity": "CRITICAL",
+                "status": "open",
+            },
+            {
+                "event_id": 3,
+                "machine_id": 2,
+                "sensor": "vibration",
+                "anomaly_type": "oscillation",
+                "start_step": 30,
+                "end_step": 35,
+                "duration": 6,
+                "alert_count": 3,
+                "max_severity": "CRITICAL",
+                "status": "open",
+            },
+            {
+                "event_id": 4,
+                "machine_id": 2,
+                "sensor": "voltage",
+                "anomaly_type": "drift",
+                "start_step": 40,
+                "end_step": 45,
+                "duration": 6,
+                "alert_count": 3,
+                "max_severity": "INFO",
+                "status": "open",
+            },
+        ]
+    )
+
+    load_dataframe_to_table(temp_connection, events, "alert_events", run_id)
+
+    response = client.get(f"/runs/{run_id}/events/severity-distribution")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data == [
+        {"severity": "CRITICAL", "count": 2},
+        {"severity": "WARNING", "count": 1},
+        {"severity": "INFO", "count": 1},
+    ]
+
+
+def test_read_severity_distribution_returns_404_when_run_missing(client):
+    response = client.get("/runs/999/events/severity-distribution")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Pipeline run not found"

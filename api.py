@@ -16,6 +16,9 @@ from db_queries import (
     get_filtered_alert_events_for_run,
     get_filtered_predictions_for_run,
     get_run_summary,
+    get_anomaly_type_distribution_for_run,
+    get_sensor_distribution_for_run,
+    get_severity_distribution_for_run,
 )
 
 from schemas import (
@@ -27,6 +30,9 @@ from schemas import (
     SensorReadingResponse,
     PredictionResponse,
     RunSummaryResponse,
+    AnomalyTypeDistributionResponse,
+    SensorDistributionResponse,
+    SeverityDistributionResponse,
 )
 
 
@@ -209,6 +215,33 @@ def read_run_summary(run_id: int, conn=Depends(get_db_connection)):
     summary = get_run_summary(conn, run_id)
     
     return summary
+
+
+@app.get("/runs/{run_id}/events/anomaly-type-distribution", response_model=list[AnomalyTypeDistributionResponse])
+def read_anomaly_type_distribution_for_run(run_id: int, conn=Depends(get_db_connection)):
+    ensure_run_exists(conn, run_id)
+    
+    distribution = get_anomaly_type_distribution_for_run(conn, run_id)
+    
+    return distribution
+
+
+@app.get("/runs/{run_id}/events/sensor-distribution")
+def read_sensor_distribution_for_run(run_id: int, conn=Depends(get_db_connection)):
+    ensure_run_exists(conn, run_id)
+    
+    distribution = get_sensor_distribution_for_run(conn, run_id)
+    
+    return distribution
+
+
+@app.get("/runs/{run_id}/events/severity-distribution")
+def read_severity_distribution_for_run(run_id: int, conn=Depends(get_db_connection)):
+    ensure_run_exists(conn, run_id)
+    
+    distribution = get_severity_distribution_for_run(conn, run_id)
+    
+    return distribution
 
 def ensure_run_exists(conn, run_id: int):
     response = run_exists(conn, run_id)
