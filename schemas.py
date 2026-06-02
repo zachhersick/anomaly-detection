@@ -105,3 +105,19 @@ class PredictionResponse(BaseModel):
     threshold: float | None = None
     anomaly_type: str | None = None
     target_sensor: str | None = None
+    
+class RunSummaryResponse(BaseModel):
+    """
+    Response model for one run summary
+    """
+    run_id: int
+    total_predictions: int
+    total_anomalies_predicted: int
+    total_row_alerts: int
+    total_alert_events: int
+    critical_alert_events: int
+    warning_alert_events: int
+    info_alert_events: int
+    machines_with_alerts: int
+    max_anomaly_score: float | None
+    mean_anomaly_score: float | None

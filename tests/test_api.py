@@ -1119,3 +1119,147 @@ def test_read_sensor_readings_rejects_negative_offset(client, temp_connection):
     response = client.get(f"/runs/{run_id}/machines/1/readings?offset=-1")
 
     assert response.status_code == 422
+    
+
+def test_read_run_summary(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    predictions = pd.DataFrame(
+        [
+            {
+                "step": 1,
+                "machine_id": 1,
+                "real_value": 0,
+                "prediction": 0,
+                "anomaly_score": 0.10,
+                "threshold": 0.35,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "step": 2,
+                "machine_id": 1,
+                "real_value": 1,
+                "prediction": 1,
+                "anomaly_score": 0.90,
+                "threshold": 0.35,
+                "anomaly_type": "spike",
+                "target_sensor": "temperature",
+            },
+            {
+                "step": 3,
+                "machine_id": 2,
+                "real_value": 1,
+                "prediction": 1,
+                "anomaly_score": 0.80,
+                "threshold": 0.35,
+                "anomaly_type": "drop",
+                "target_sensor": "pressure",
+            },
+        ]
+    )
+
+    row_alerts = pd.DataFrame(
+        [
+            {
+                "alert_id": 1,
+                "step": 2,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "sensor_value": 105.0,
+                "prediction": 1,
+                "anomaly_score": 0.90,
+                "severity": "CRITICAL",
+                "alert_type": "model_and_threshold",
+                "reason": "test alert one",
+                "status": "open",
+                "anomaly_type": "spike",
+                "real_value": 1,
+            },
+            {
+                "alert_id": 2,
+                "step": 3,
+                "machine_id": 2,
+                "sensor": "pressure",
+                "sensor_value": 20.0,
+                "prediction": 1,
+                "anomaly_score": 0.80,
+                "severity": "WARNING",
+                "alert_type": "model_anomaly",
+                "reason": "test alert two",
+                "status": "open",
+                "anomaly_type": "drop",
+                "real_value": 1,
+            },
+        ]
+    )
+
+    alert_events = pd.DataFrame(
+        [
+            {
+                "event_id": 1,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "anomaly_type": "spike",
+                "start_step": 2,
+                "end_step": 2,
+                "duration": 1,
+                "alert_count": 1,
+                "max_severity": "CRITICAL",
+                "status": "open",
+            },
+            {
+                "event_id": 2,
+                "machine_id": 2,
+                "sensor": "pressure",
+                "anomaly_type": "drop",
+                "start_step": 3,
+                "end_step": 3,
+                "duration": 1,
+                "alert_count": 1,
+                "max_severity": "WARNING",
+                "status": "open",
+            },
+            {
+                "event_id": 3,
+                "machine_id": 2,
+                "sensor": "vibration",
+                "anomaly_type": "oscillation",
+                "start_step": 4,
+                "end_step": 4,
+                "duration": 1,
+                "alert_count": 1,
+                "max_severity": "INFO",
+                "status": "open",
+            },
+        ]
+    )
+
+    load_dataframe_to_table(temp_connection, predictions, "model_predictions", run_id)
+    load_dataframe_to_table(temp_connection, row_alerts, "row_alerts", run_id)
+    load_dataframe_to_table(temp_connection, alert_events, "alert_events", run_id)
+
+    response = client.get(f"/runs/{run_id}/summary")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["run_id"] == run_id
+    assert data["total_predictions"] == 3
+    assert data["total_anomalies_predicted"] == 2
+    assert data["total_row_alerts"] == 2
+    assert data["total_alert_events"] == 3
+    assert data["critical_alert_events"] == 1
+    assert data["warning_alert_events"] == 1
+    assert data["info_alert_events"] == 1
+    assert data["machines_with_alerts"] == 2
+    assert data["max_anomaly_score"] == 0.90
+    assert data["mean_anomaly_score"] == pytest.approx(0.60)
+
+
+def test_read_run_summary_returns_404_when_run_missing(client):
+    response = client.get("/runs/999/summary")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Pipeline run not found"

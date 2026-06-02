@@ -521,6 +521,8 @@ GET /runs/{run_id}/events/{event_id}/alerts
 
 GET /runs/{run_id}/machines/{machine_id}/readings
 GET /runs/{run_id}/predictions
+
+GET /runs/{run_id}/summary
 ```
 
 ### Event Filtering and Pagination
@@ -632,6 +634,15 @@ Examples of invalid requests:
 /runs/1/machines/1/readings?limit=501
 /runs/1/machines/1/readings?offset=-1
 ```
+
+### Run Summary Endpoint
+
+`GET /runs/{run_id}/summary` returns dashboard-style aggregate metrics for one pipeline run.
+
+Example request:
+
+```text
+http://127.0.0.1:8000/runs/1/summary
 
 ### Response Models
 

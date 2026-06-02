@@ -257,3 +257,107 @@ def get_filtered_predictions_for_run(
     
     rows = conn.execute(sql, params).fetchall()
     return rows
+
+def get_run_summary(conn, run_id: int):
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS total_predictions
+        FROM model_predictions
+        WHERE run_id = ?
+        """,
+        (run_id,),
+    ).fetchone()
+
+    total_predictions = row["total_predictions"]
+    
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS total_anomalies_predicted
+        FROM model_predictions
+        WHERE run_id = ?
+            AND prediction = 1
+        """,
+        (run_id,),
+    ).fetchone()
+    
+    total_anomalies_predicted = row['total_anomalies_predicted']
+    
+    row = conn.execute(
+        """
+        SELECT
+            MAX(anomaly_score) AS max_anomaly_score,
+            AVG(anomaly_score) AS mean_anomaly_score
+        FROM model_predictions
+        WHERE run_id = ?
+        """,
+        (run_id,),
+    ).fetchone()
+    
+    max_anomaly_score = row['max_anomaly_score']
+    mean_anomaly_score = row['mean_anomaly_score']
+    
+    rows = conn.execute(
+        """
+        SELECT max_severity, COUNT(*) AS count
+        FROM alert_events
+        WHERE run_id = ?
+        GROUP BY max_severity
+        """,
+        (run_id,),
+    ).fetchall()
+
+    severity_counts = {
+        "CRITICAL": 0,
+        "WARNING": 0,
+        "INFO": 0,
+    }
+
+    for row in rows:
+        severity_counts[row["max_severity"]] = row["count"]
+        
+    row = conn.execute(
+        """
+        SELECT COUNT(*) as total_row_alerts
+        FROM row_alerts
+        WHERE run_id = ?
+        """,
+        (run_id,),
+    ).fetchone()
+    
+    total_row_alerts = row['total_row_alerts']
+    
+    row = conn.execute(
+        """
+        SELECT COUNT(*) as total_alert_events
+        FROM alert_events
+        WHERE run_id = ?
+        """,
+        (run_id,),
+    ).fetchone()
+    
+    total_alert_events = row['total_alert_events']
+    
+    row = conn.execute(
+        """
+        SELECT COUNT(DISTINCT machine_id) AS machines_with_alerts
+        FROM alert_events
+        WHERE run_id = ?
+        """,
+        (run_id,),
+    ).fetchone()
+
+    machines_with_alerts = row["machines_with_alerts"]
+        
+    return {
+        "run_id": run_id,
+        "total_predictions": total_predictions,
+        "total_anomalies_predicted": total_anomalies_predicted,
+        "total_row_alerts": total_row_alerts,
+        "total_alert_events": total_alert_events,
+        "critical_alert_events": severity_counts["CRITICAL"],
+        "warning_alert_events": severity_counts["WARNING"],
+        "info_alert_events": severity_counts["INFO"],
+        "machines_with_alerts": machines_with_alerts,
+        "max_anomaly_score": max_anomaly_score,
+        "mean_anomaly_score": mean_anomaly_score,
+    }

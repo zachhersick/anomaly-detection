@@ -15,6 +15,7 @@ from db_queries import (
     event_exists,
     get_filtered_alert_events_for_run,
     get_filtered_predictions_for_run,
+    get_run_summary,
 )
 
 from schemas import (
@@ -25,6 +26,7 @@ from schemas import (
     RowAlertResponse,
     SensorReadingResponse,
     PredictionResponse,
+    RunSummaryResponse,
 )
 
 
@@ -199,6 +201,14 @@ def read_predictions_for_run(
     )
 
     return rows_to_dicts(rows)
+
+@app.get("/runs/{run_id}/summary", response_model=RunSummaryResponse)
+def read_run_summary(run_id: int, conn=Depends(get_db_connection)):
+    ensure_run_exists(conn, run_id)
+    
+    summary = get_run_summary(conn, run_id)
+    
+    return summary
 
 def ensure_run_exists(conn, run_id: int):
     response = run_exists(conn, run_id)
