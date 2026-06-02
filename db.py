@@ -123,6 +123,69 @@ def create_tables(connection: sqlite3.Connection) -> None:
         );
         """
     )
+    
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_alert_events_run_start
+        ON alert_events(run_id, start_step);
+        """
+    )
+    
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_alert_events_run_max_start
+        ON alert_events(run_id, max_severity, start_step);
+        """
+    )
+    
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_alert_events_run_sensor_start
+        ON alert_events(run_id, sensor, start_step);
+        """
+    )
+    
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_alert_events_run_anomaly_start
+        ON alert_events(run_id, anomaly_type, start_step);
+        """
+    )
+    
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_model_predictions_run_step_machine_target
+        ON model_predictions(run_id, step, machine_id, target_sensor);
+        """
+    )
+    
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_model_predictions_run_machine_step
+        ON model_predictions(run_id, machine_id, step);
+        """
+    )
+    
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_model_predictions_run_anomaly_step
+        ON model_predictions(run_id, anomaly_type, step);
+        """
+    )
+    
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_model_predictions_run_target_step
+        ON model_predictions(run_id, target_sensor, step);
+        """
+    )
+    
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_sensor_readings_run_machine_step
+        ON sensor_readings(run_id, machine_id, step);
+        """
+    )
 
     connection.commit()
 

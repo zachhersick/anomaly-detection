@@ -1,4 +1,5 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
+from typing import Annotated, Literal
 import sqlite3
 
 from db import get_connection
@@ -97,8 +98,8 @@ def read_alert_events_for_run(
     severity: str | None = None,
     sensor: str | None = None,
     anomaly_type: str | None = None,
-    limit: int | None = 100,
-    offset: int = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
     conn=Depends(get_db_connection),
 ):
     """
@@ -152,8 +153,8 @@ def read_row_alerts_for_event(
 def read_sensor_readings_for_machine(
     run_id: int,
     machine_id: int,
-    limit: int | None = 100,
-    offset: int = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
     conn=Depends(get_db_connection),
 ):
     """
@@ -178,8 +179,8 @@ def read_predictions_for_run(
     machine_id: int | None = None,
     anomaly_type: str  | None = None,
     target_sensor: str | None = None,
-    limit: int | None = 100,
-    offset: int = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
     conn=Depends(get_db_connection),
 ):
     """

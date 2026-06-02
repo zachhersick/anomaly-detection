@@ -1047,3 +1047,75 @@ def test_read_row_alerts_returns_404_when_run_missing_before_event_check(client)
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Pipeline run not found"
+    
+    
+def test_read_alert_events_rejects_limit_zero(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/events?limit=0")
+
+    assert response.status_code == 422
+
+
+def test_read_alert_events_rejects_limit_above_max(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/events?limit=501")
+
+    assert response.status_code == 422
+
+
+def test_read_alert_events_rejects_negative_offset(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/events?offset=-1")
+
+    assert response.status_code == 422
+
+
+def test_read_predictions_rejects_limit_zero(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/predictions?limit=0")
+
+    assert response.status_code == 422
+
+
+def test_read_predictions_rejects_limit_above_max(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/predictions?limit=501")
+
+    assert response.status_code == 422
+
+
+def test_read_predictions_rejects_negative_offset(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/predictions?offset=-1")
+
+    assert response.status_code == 422
+
+
+def test_read_sensor_readings_rejects_limit_zero(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/machines/1/readings?limit=0")
+
+    assert response.status_code == 422
+
+
+def test_read_sensor_readings_rejects_limit_above_max(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/machines/1/readings?limit=501")
+
+    assert response.status_code == 422
+
+
+def test_read_sensor_readings_rejects_negative_offset(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/machines/1/readings?offset=-1")
+
+    assert response.status_code == 422
