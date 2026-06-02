@@ -23,6 +23,8 @@ SQLite persistence
     ↓
 FastAPI read API
     ↓
+dashboard-ready API layer
+    ↓
 future dashboard or deployment
 ```
 
@@ -40,6 +42,7 @@ Industrial systems produce continuous sensor readings. A useful anomaly detectio
 - group noisy row-level alerts into operational events
 - persist pipeline outputs for later analysis
 - expose results through an API
+- support dashboard-ready aggregate views
 
 This project simulates that workflow using synthetic industrial sensor data.
 
@@ -84,11 +87,11 @@ anomaly_detection.db
 
 db_queries.py
     ↓
-read/query helpers
+read/query helpers and aggregate helpers
 
 api.py
     ↓
-FastAPI REST endpoints
+FastAPI REST endpoints and dashboard-ready API responses
 ```
 
 The full script pipeline can be run with:
@@ -123,7 +126,7 @@ api.py                     FastAPI application and API routes
 schemas.py                 Pydantic response models for API responses
 
 db.py                      SQLite connection, table creation, and indexes
-db_queries.py              Read-only SQLite query helpers
+db_queries.py              Read-only SQLite query and aggregate helpers
 load_to_db.py              Loads CSV pipeline outputs into SQLite
 
 run_pipeline.py            Runs the main ML pipeline scripts in order
@@ -515,17 +518,54 @@ GET /health
 GET /runs
 GET /runs/latest
 
+GET /runs/{run_id}/summary
+
 GET /runs/{run_id}/events
 GET /runs/{run_id}/events/critical
 GET /runs/{run_id}/events/{event_id}/alerts
+GET /runs/{run_id}/events/anomaly-type-distribution
+GET /runs/{run_id}/events/sensor-distribution
+GET /runs/{run_id}/events/severity-distribution
 
 GET /runs/{run_id}/machines/{machine_id}/readings
 GET /runs/{run_id}/predictions
 
-GET /runs/{run_id}/summary
+GET /dashboard/runs/{run_id}
 ```
 
-### Event Filtering and Pagination
+---
+
+## Run Summary Endpoint
+
+`GET /runs/{run_id}/summary` returns dashboard-style aggregate metrics for one pipeline run.
+
+Example request:
+
+```text
+http://127.0.0.1:8000/runs/1/summary
+```
+
+The response includes:
+
+```text
+run_id
+total_predictions
+total_anomalies_predicted
+total_row_alerts
+total_alert_events
+critical_alert_events
+warning_alert_events
+info_alert_events
+machines_with_alerts
+max_anomaly_score
+mean_anomaly_score
+```
+
+This endpoint is useful for dashboards because it gives a high-level overview of one run without requiring the client to request thousands of prediction, alert, or event rows.
+
+---
+
+## Event Filtering and Pagination
 
 `GET /runs/{run_id}/events` supports:
 
@@ -553,7 +593,114 @@ Results are ordered by:
 start_step ASC
 ```
 
-### Prediction Filtering and Pagination
+---
+
+## Chart-Ready Event Distribution Endpoints
+
+These endpoints return aggregate event counts that can be used directly by a dashboard.
+
+### Anomaly Type Distribution
+
+`GET /runs/{run_id}/events/anomaly-type-distribution`
+
+Example request:
+
+```text
+http://127.0.0.1:8000/runs/1/events/anomaly-type-distribution
+```
+
+Example response shape:
+
+```json
+[
+  {
+    "anomaly_type": "spike",
+    "count": 12
+  },
+  {
+    "anomaly_type": "drift",
+    "count": 7
+  }
+]
+```
+
+Results are ordered by:
+
+```text
+count DESC, anomaly_type ASC
+```
+
+### Sensor Distribution
+
+`GET /runs/{run_id}/events/sensor-distribution`
+
+Example request:
+
+```text
+http://127.0.0.1:8000/runs/1/events/sensor-distribution
+```
+
+Example response shape:
+
+```json
+[
+  {
+    "sensor": "temperature",
+    "count": 10
+  },
+  {
+    "sensor": "pressure",
+    "count": 6
+  }
+]
+```
+
+Results are ordered by:
+
+```text
+count DESC, sensor ASC
+```
+
+### Severity Distribution
+
+`GET /runs/{run_id}/events/severity-distribution`
+
+Example request:
+
+```text
+http://127.0.0.1:8000/runs/1/events/severity-distribution
+```
+
+Example response shape:
+
+```json
+[
+  {
+    "severity": "CRITICAL",
+    "count": 4
+  },
+  {
+    "severity": "WARNING",
+    "count": 9
+  },
+  {
+    "severity": "INFO",
+    "count": 3
+  }
+]
+```
+
+Results are ordered by severity priority:
+
+```text
+CRITICAL
+WARNING
+INFO
+```
+
+---
+
+## Prediction Filtering and Pagination
 
 `GET /runs/{run_id}/predictions` supports:
 
@@ -581,7 +728,9 @@ Results are ordered by:
 step ASC, machine_id ASC, target_sensor ASC
 ```
 
-### Sensor Reading Pagination
+---
+
+## Sensor Reading Pagination
 
 `GET /runs/{run_id}/machines/{machine_id}/readings` supports:
 
@@ -604,7 +753,93 @@ Results are ordered by:
 step ASC
 ```
 
-### Pagination Validation
+---
+
+## Dashboard Endpoint
+
+`GET /dashboard/runs/{run_id}` returns a combined dashboard-ready payload for one pipeline run.
+
+Example request:
+
+```text
+http://127.0.0.1:8000/dashboard/runs/1
+```
+
+The response includes:
+
+```text
+summary
+anomaly_type_distribution
+sensor_distribution
+severity_distribution
+top_critical_events
+```
+
+This endpoint is designed for a future dashboard client. Instead of making separate requests for summary metrics, chart distributions, and critical event rows, the dashboard can make one request and receive the main overview payload.
+
+Example response shape:
+
+```json
+{
+  "summary": {
+    "run_id": 1,
+    "total_predictions": 50000,
+    "total_anomalies_predicted": 4200,
+    "total_row_alerts": 900,
+    "total_alert_events": 120,
+    "critical_alert_events": 15,
+    "warning_alert_events": 70,
+    "info_alert_events": 35,
+    "machines_with_alerts": 10,
+    "max_anomaly_score": 0.98,
+    "mean_anomaly_score": 0.14
+  },
+  "anomaly_type_distribution": [
+    {
+      "anomaly_type": "spike",
+      "count": 30
+    }
+  ],
+  "sensor_distribution": [
+    {
+      "sensor": "temperature",
+      "count": 20
+    }
+  ],
+  "severity_distribution": [
+    {
+      "severity": "CRITICAL",
+      "count": 15
+    }
+  ],
+  "top_critical_events": [
+    {
+      "run_id": 1,
+      "event_id": 7,
+      "machine_id": 3,
+      "sensor": "temperature",
+      "anomaly_type": "spike",
+      "start_step": 120,
+      "end_step": 125,
+      "duration": 6,
+      "alert_count": 6,
+      "max_severity": "CRITICAL",
+      "max_severity_reason": "temperature exceeded critical threshold",
+      "max_anomaly_score": 0.98,
+      "mean_anomaly_score": 0.94,
+      "min_sensor_value": 105.0,
+      "max_sensor_value": 112.0,
+      "first_reason": "model and threshold alert",
+      "status": "open",
+      "real_value": 1
+    }
+  ]
+}
+```
+
+---
+
+## Pagination Validation
 
 For paginated endpoints:
 
@@ -635,16 +870,9 @@ Examples of invalid requests:
 /runs/1/machines/1/readings?offset=-1
 ```
 
-### Run Summary Endpoint
+---
 
-`GET /runs/{run_id}/summary` returns dashboard-style aggregate metrics for one pipeline run.
-
-Example request:
-
-```text
-http://127.0.0.1:8000/runs/1/summary
-
-### Response Models
+## Response Models
 
 `schemas.py` defines Pydantic response models for:
 
@@ -656,11 +884,18 @@ AlertEventResponse
 RowAlertResponse
 SensorReadingResponse
 PredictionResponse
+RunSummaryResponse
+AnomalyTypeDistributionResponse
+SensorDistributionResponse
+SeverityDistributionResponse
+DashboardRunResponse
 ```
 
 These models make the API contract explicit and improve the generated `/docs` page.
 
-### Error Handling
+---
+
+## Error Handling
 
 Run-specific endpoints validate that the requested `run_id` exists.
 
@@ -721,6 +956,9 @@ API query validation
 API response models
 missing-run validation
 missing-event validation
+run summary endpoint
+chart-ready distribution endpoints
+dashboard API endpoint
 pipeline orchestration
 ```
 
@@ -888,6 +1126,9 @@ Event filtering
 Prediction filtering
 Pagination with limit and offset
 Pagination validation
+Run summary endpoint
+Chart-ready distribution endpoints
+Dashboard-ready aggregate endpoint
 Pytest coverage
 GitHub Actions CI
 MIT license
@@ -896,11 +1137,13 @@ MIT license
 Next planned improvements:
 
 ```text
-Add run summary endpoint for dashboard usage
-Add dashboard-oriented aggregate queries
-Persist feature rows if needed
+Build a simple Streamlit dashboard that calls the FastAPI backend
+Add dashboard screenshots to README
+Add model ablation script
+Add threshold comparison report
+Add config and CLI cleanup
+Add Docker support
 Add deployment configuration
-Build a simple dashboard or frontend
 ```
 
 ---
@@ -936,6 +1179,7 @@ alert/event logic
 persistent storage
 REST API design
 database indexing
+dashboard-ready API design
 test coverage
 CI
 ```
