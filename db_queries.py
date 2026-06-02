@@ -188,3 +188,33 @@ def event_exists(conn,run_id, event_id):
     ).fetchone()
 
     return row is not None
+
+def get_filtered_alert_events_for_run(conn, run_id, severity=None, sensor=None, anomaly_type=None, limit=100):
+    sql = """
+        SELECT *
+        FROM alert_events
+        WHERE run_id = ?
+    """
+    
+    params = [run_id]
+    
+    if severity is not None:
+        sql += " AND max_severity = ?"
+        params.append(severity)
+    
+    if sensor is not None:
+        sql += " AND sensor = ?"
+        params.append(sensor)
+    
+    if anomaly_type is not None:
+        sql += " AND anomaly_type = ?"
+        params.append(anomaly_type)
+        
+    sql += " ORDER BY start_step ASC"
+    
+    if limit is not None:
+        sql += " LIMIT ?"
+        params.append(limit)
+    
+    rows = conn.execute(sql, params).fetchall()
+    return rows

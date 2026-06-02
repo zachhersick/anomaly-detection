@@ -12,6 +12,7 @@ from db_queries import (
     get_predictions_for_run,
     run_exists,
     event_exists,
+    get_filtered_alert_events_for_run,
 )
 
 from schemas import (
@@ -92,6 +93,10 @@ def read_latest_run(conn=Depends(get_db_connection)):
 @app.get("/runs/{run_id}/events", response_model=list[AlertEventResponse])
 def read_alert_events_for_run(
     run_id: int,
+    severity: str | None = None,
+    sensor: str | None = None,
+    anomaly_type: str | None = None,
+    limit: int | None = 100,
     conn=Depends(get_db_connection),
 ):
     """
@@ -99,7 +104,14 @@ def read_alert_events_for_run(
     """
     ensure_run_exists(conn, run_id)
     
-    rows = get_alert_events_for_run(conn, run_id)
+    rows = get_filtered_alert_events_for_run(
+        conn,
+        run_id=run_id,
+        severity=severity,
+        sensor=sensor,
+        anomaly_type=anomaly_type,
+        limit=limit
+    )
     return rows_to_dicts(rows)
 
 

@@ -45,6 +45,55 @@ def client(temp_connection):
         app.dependency_overrides.clear()
 
 
+def seed_event_filter_test_data(temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    events = pd.DataFrame(
+        [
+            {
+                "event_id": 1,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "anomaly_type": "spike",
+                "start_step": 10,
+                "end_step": 12,
+                "duration": 3,
+                "alert_count": 2,
+                "max_severity": "CRITICAL",
+                "status": "open",
+            },
+            {
+                "event_id": 2,
+                "machine_id": 1,
+                "sensor": "pressure",
+                "anomaly_type": "drift",
+                "start_step": 20,
+                "end_step": 25,
+                "duration": 6,
+                "alert_count": 3,
+                "max_severity": "WARNING",
+                "status": "open",
+            },
+            {
+                "event_id": 3,
+                "machine_id": 2,
+                "sensor": "vibration",
+                "anomaly_type": "oscillation",
+                "start_step": 30,
+                "end_step": 35,
+                "duration": 6,
+                "alert_count": 4,
+                "max_severity": "CRITICAL",
+                "status": "open",
+            },
+        ]
+    )
+
+    load_dataframe_to_table(temp_connection, events, "alert_events", run_id)
+
+    return run_id
+
+
 def test_health_check(client):
     response = client.get("/health")
 
@@ -175,6 +224,83 @@ def test_read_alert_events_for_run(client, temp_connection):
     assert all(event["run_id"] == run_id_1 for event in data)
 
 
+def test_read_alert_events_filters_by_severity(client, temp_connection):
+    run_id = seed_event_filter_test_data(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/events?severity=CRITICAL")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_event_ids = [event["event_id"] for event in data]
+
+    assert returned_event_ids == [1, 3]
+    assert all(event["max_severity"] == "CRITICAL" for event in data)
+
+
+def test_read_alert_events_filters_by_sensor(client, temp_connection):
+    run_id = seed_event_filter_test_data(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/events?sensor=temperature")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["event_id"] == 1
+    assert data[0]["sensor"] == "temperature"
+
+
+def test_read_alert_events_filters_by_anomaly_type(client, temp_connection):
+    run_id = seed_event_filter_test_data(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/events?anomaly_type=spike")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["event_id"] == 1
+    assert data[0]["anomaly_type"] == "spike"
+
+
+def test_read_alert_events_applies_limit(client, temp_connection):
+    run_id = seed_event_filter_test_data(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/events?limit=1")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["event_id"] == 1
+
+
+def test_read_alert_events_combines_filters(client, temp_connection):
+    run_id = seed_event_filter_test_data(temp_connection)
+
+    response = client.get(
+        f"/runs/{run_id}/events"
+        "?severity=CRITICAL"
+        "&sensor=temperature"
+        "&anomaly_type=spike"
+        "&limit=100"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["event_id"] == 1
+    assert data[0]["max_severity"] == "CRITICAL"
+    assert data[0]["sensor"] == "temperature"
+    assert data[0]["anomaly_type"] == "spike"
+
+
 def test_read_critical_alert_events_for_run(client, temp_connection):
     run_id = insert_pipeline_run(temp_connection)
 
@@ -218,7 +344,8 @@ def test_read_critical_alert_events_for_run(client, temp_connection):
     assert len(data) == 1
     assert data[0]["event_id"] == 2
     assert data[0]["max_severity"] == "CRITICAL"
-    
+
+
 def test_read_row_alerts_for_event(client, temp_connection):
     run_id = insert_pipeline_run(temp_connection)
 
@@ -333,7 +460,8 @@ def test_read_row_alerts_for_event(client, temp_connection):
     assert all(alert["run_id"] == run_id for alert in data)
     assert all(alert["machine_id"] == 1 for alert in data)
     assert all(alert["sensor"] == "temperature" for alert in data)
-    
+
+
 def test_read_sensor_readings_for_machine(client, temp_connection):
     run_id_1 = insert_pipeline_run(temp_connection)
     run_id_2 = insert_pipeline_run(temp_connection)
@@ -432,7 +560,8 @@ def test_read_sensor_readings_for_machine(client, temp_connection):
     assert returned_steps == [1, 2]
     assert all(reading["run_id"] == run_id_1 for reading in data)
     assert all(reading["machine_id"] == 1 for reading in data)
-    
+
+
 def test_read_predictions_for_run(client, temp_connection):
     run_id_1 = insert_pipeline_run(temp_connection)
     run_id_2 = insert_pipeline_run(temp_connection)
@@ -500,30 +629,35 @@ def test_read_predictions_for_run(client, temp_connection):
     assert len(data) == 2
     assert returned_steps == [1, 2]
     assert all(prediction["run_id"] == run_id_1 for prediction in data)
-    
+
+
 def test_read_alert_events_returns_404_when_run_missing(client):
     response = client.get("/runs/999/events")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Pipeline run not found"
-    
+
+
 def test_read_predictions_returns_404_when_run_missing(client):
     response = client.get("/runs/999/predictions")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Pipeline run not found"
-    
+
+
 def test_read_sensor_readings_returns_404_when_run_missing(client):
     response = client.get("/runs/999/machines/1/readings")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Pipeline run not found"
-    
+
+
 def test_read_row_alerts_returns_404_when_run_missing(client):
     response = client.get("/runs/999/events/1/alerts")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Pipeline run not found"
+
 
 def test_read_row_alerts_returns_404_when_event_missing(client, temp_connection):
     run_id = insert_pipeline_run(temp_connection)
@@ -532,7 +666,8 @@ def test_read_row_alerts_returns_404_when_event_missing(client, temp_connection)
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Alert event not found"
-    
+
+
 def test_read_row_alerts_returns_404_when_run_missing_before_event_check(client):
     response = client.get("/runs/999/events/999/alerts")
 
