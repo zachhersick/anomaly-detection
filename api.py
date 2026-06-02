@@ -98,6 +98,7 @@ def read_alert_events_for_run(
     sensor: str | None = None,
     anomaly_type: str | None = None,
     limit: int | None = 100,
+    offset: int = 0,
     conn=Depends(get_db_connection),
 ):
     """
@@ -111,7 +112,8 @@ def read_alert_events_for_run(
         severity=severity,
         sensor=sensor,
         anomaly_type=anomaly_type,
-        limit=limit
+        limit=limit,
+        offset=offset
     )
     return rows_to_dicts(rows)
 
@@ -151,6 +153,7 @@ def read_sensor_readings_for_machine(
     run_id: int,
     machine_id: int,
     limit: int | None = 100,
+    offset: int = 0,
     conn=Depends(get_db_connection),
 ):
     """
@@ -163,6 +166,7 @@ def read_sensor_readings_for_machine(
         run_id=run_id,
         machine_id=machine_id,
         limit=limit,
+        offset=offset,
     )
 
     return rows_to_dicts(rows)
@@ -175,6 +179,7 @@ def read_predictions_for_run(
     anomaly_type: str  | None = None,
     target_sensor: str | None = None,
     limit: int | None = 100,
+    offset: int = 0,
     conn=Depends(get_db_connection),
 ):
     """
@@ -189,6 +194,7 @@ def read_predictions_for_run(
         anomaly_type=anomaly_type,
         target_sensor=target_sensor,
         limit=limit,
+        offset=offset,
     )
 
     return rows_to_dicts(rows)

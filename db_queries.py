@@ -100,7 +100,13 @@ def get_row_alerts_for_event(conn, run_id, event_id):
     
     return alert_rows
 
-def get_sensor_readings_for_machine(conn, run_id, machine_id, limit=None):
+def get_sensor_readings_for_machine(
+    conn,
+    run_id: int,
+    machine_id: int,
+    limit: int | None = None,
+    offset: int = 0,
+):
     """
     return sensor readings for one machine in one run
     """
@@ -123,8 +129,9 @@ def get_sensor_readings_for_machine(conn, run_id, machine_id, limit=None):
                 AND machine_id = ?
             ORDER BY step ASC
             LIMIT ?
+            OFFSET ?
             """
-        , (run_id, machine_id, limit, )).fetchall()
+        , (run_id, machine_id, limit, offset, )).fetchall()
     
     return rows
 
@@ -173,7 +180,15 @@ def event_exists(conn,run_id, event_id):
 
     return row is not None
 
-def get_filtered_alert_events_for_run(conn, run_id, severity=None, sensor=None, anomaly_type=None, limit=100):
+def get_filtered_alert_events_for_run(
+    conn,
+    run_id,
+    severity=None,
+    sensor=None,
+    anomaly_type=None,
+    limit=100,
+    offset: int = 0,
+):
     sql = """
         SELECT *
         FROM alert_events
@@ -197,8 +212,9 @@ def get_filtered_alert_events_for_run(conn, run_id, severity=None, sensor=None, 
     sql += " ORDER BY start_step ASC"
     
     if limit is not None:
-        sql += " LIMIT ?"
+        sql += " LIMIT ? OFFSET ?"
         params.append(limit)
+        params.append(offset)
     
     rows = conn.execute(sql, params).fetchall()
     return rows
@@ -209,7 +225,8 @@ def get_filtered_predictions_for_run(
     machine_id: int | None = None,
     anomaly_type: str | None = None,
     target_sensor: str | None = None, 
-    limit=None
+    limit=None,
+    offset: int = 0,
 ):
     sql = """
         SELECT *
@@ -234,8 +251,9 @@ def get_filtered_predictions_for_run(
     sql += " ORDER BY step ASC, machine_id ASC, target_sensor ASC"
     
     if limit is not None:
-        sql += " LIMIT ?"
+        sql += " LIMIT ? OFFSET ?"
         params.append(limit)
+        params.append(offset)
     
     rows = conn.execute(sql, params).fetchall()
     return rows

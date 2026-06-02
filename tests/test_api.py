@@ -560,6 +560,146 @@ def test_read_sensor_readings_for_machine(client, temp_connection):
     assert returned_steps == [1, 2]
     assert all(reading["run_id"] == run_id_1 for reading in data)
     assert all(reading["machine_id"] == 1 for reading in data)
+    
+    
+def test_read_sensor_readings_applies_offset(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    readings = pd.DataFrame(
+        [
+            {
+                "timestamp": "2026-01-01 00:00:01",
+                "step": 1,
+                "machine_id": 1,
+                "temperature": 70.0,
+                "pressure": 50.0,
+                "vibration": 2.0,
+                "flow_rate": 1.0,
+                "voltage": 120.0,
+                "current": 10.0,
+                "is_anomaly": 0,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "timestamp": "2026-01-01 00:00:02",
+                "step": 2,
+                "machine_id": 1,
+                "temperature": 71.0,
+                "pressure": 51.0,
+                "vibration": 2.1,
+                "flow_rate": 1.1,
+                "voltage": 121.0,
+                "current": 11.0,
+                "is_anomaly": 0,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "timestamp": "2026-01-01 00:00:03",
+                "step": 3,
+                "machine_id": 1,
+                "temperature": 72.0,
+                "pressure": 52.0,
+                "vibration": 2.2,
+                "flow_rate": 1.2,
+                "voltage": 122.0,
+                "current": 12.0,
+                "is_anomaly": 0,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "timestamp": "2026-01-01 00:00:04",
+                "step": 4,
+                "machine_id": 1,
+                "temperature": 73.0,
+                "pressure": 53.0,
+                "vibration": 2.3,
+                "flow_rate": 1.3,
+                "voltage": 123.0,
+                "current": 13.0,
+                "is_anomaly": 0,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+        ]
+    )
+
+    load_dataframe_to_table(temp_connection, readings, "sensor_readings", run_id)
+
+    response = client.get(f"/runs/{run_id}/machines/1/readings?limit=2&offset=2")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_steps = [reading["step"] for reading in data]
+
+    assert len(data) == 2
+    assert returned_steps == [3, 4]
+
+
+def test_read_sensor_readings_offset_zero_returns_first_page(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    readings = pd.DataFrame(
+        [
+            {
+                "timestamp": "2026-01-01 00:00:01",
+                "step": 1,
+                "machine_id": 1,
+                "temperature": 70.0,
+                "pressure": 50.0,
+                "vibration": 2.0,
+                "flow_rate": 1.0,
+                "voltage": 120.0,
+                "current": 10.0,
+                "is_anomaly": 0,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "timestamp": "2026-01-01 00:00:02",
+                "step": 2,
+                "machine_id": 1,
+                "temperature": 71.0,
+                "pressure": 51.0,
+                "vibration": 2.1,
+                "flow_rate": 1.1,
+                "voltage": 121.0,
+                "current": 11.0,
+                "is_anomaly": 0,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "timestamp": "2026-01-01 00:00:03",
+                "step": 3,
+                "machine_id": 1,
+                "temperature": 72.0,
+                "pressure": 52.0,
+                "vibration": 2.2,
+                "flow_rate": 1.2,
+                "voltage": 122.0,
+                "current": 12.0,
+                "is_anomaly": 0,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+        ]
+    )
+
+    load_dataframe_to_table(temp_connection, readings, "sensor_readings", run_id)
+
+    response = client.get(f"/runs/{run_id}/machines/1/readings?limit=2&offset=0")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_steps = [reading["step"] for reading in data]
+
+    assert len(data) == 2
+    assert returned_steps == [1, 2]
 
 
 def test_read_predictions_for_run(client, temp_connection):
@@ -769,6 +909,53 @@ def test_read_predictions_applies_limit_after_filters(client, temp_connection):
     assert len(data) == 1
     assert data[0]["step"] == 1
     assert data[0]["target_sensor"] == "temperature"
+    
+    
+def test_read_predictions_applies_offset(client, temp_connection):
+    run_id = seed_prediction_filter_test_data(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/predictions?limit=2&offset=2")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_steps = [prediction["step"] for prediction in data]
+
+    assert len(data) == 2
+    assert returned_steps == [3, 4]
+
+
+def test_read_predictions_offset_zero_returns_first_page(client, temp_connection):
+    run_id = seed_prediction_filter_test_data(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/predictions?limit=2&offset=0")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_steps = [prediction["step"] for prediction in data]
+
+    assert len(data) == 2
+    assert returned_steps == [1, 2]
+
+
+def test_read_predictions_applies_offset_after_filters(client, temp_connection):
+    run_id = seed_prediction_filter_test_data(temp_connection)
+
+    response = client.get(
+        f"/runs/{run_id}/predictions"
+        "?target_sensor=temperature"
+        "&limit=1"
+        "&offset=1"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["step"] == 2
+    assert data[0]["target_sensor"] == "temperature"
 
 
 def test_read_alert_events_returns_404_when_run_missing(client):
@@ -776,6 +963,53 @@ def test_read_alert_events_returns_404_when_run_missing(client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Pipeline run not found"
+    
+
+def test_read_alert_events_applies_offset(client, temp_connection):
+    run_id = seed_event_filter_test_data(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/events?limit=2&offset=2")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_event_ids = [event["event_id"] for event in data]
+
+    assert len(data) == 1
+    assert returned_event_ids == [3]
+
+
+def test_read_alert_events_offset_zero_returns_first_page(client, temp_connection):
+    run_id = seed_event_filter_test_data(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/events?limit=2&offset=0")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_event_ids = [event["event_id"] for event in data]
+
+    assert len(data) == 2
+    assert returned_event_ids == [1, 2]
+
+
+def test_read_alert_events_applies_offset_after_filters(client, temp_connection):
+    run_id = seed_event_filter_test_data(temp_connection)
+
+    response = client.get(
+        f"/runs/{run_id}/events"
+        "?severity=CRITICAL"
+        "&limit=1"
+        "&offset=1"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["event_id"] == 3
+    assert data[0]["max_severity"] == "CRITICAL"
 
 
 def test_read_predictions_returns_404_when_run_missing(client):
