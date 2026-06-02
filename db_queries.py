@@ -132,27 +132,11 @@ def get_predictions_for_run(conn, run_id, limit=None):
     """
     return model predictions for one run
     """
-    if limit is None:
-        rows = conn.execute(
-            """
-            SELECT *
-            FROM model_predictions
-            WHERE run_id = ?
-            ORDER BY step ASC, machine_id ASC, target_sensor ASC
-            """
-        , (run_id, )).fetchall()
-    else:
-        rows = conn.execute(
-            """
-            SELECT *
-            FROM model_predictions
-            WHERE run_id = ?
-            ORDER BY step ASC, machine_id ASC, target_sensor ASC
-            LIMIT ?
-            """
-        , (run_id, limit, )).fetchall()
-    
-    return rows
+    return get_filtered_predictions_for_run(
+        conn=conn,
+        run_id=run_id,
+        limit=limit,
+    )
 
 def run_exists(conn, run_id):
     """
@@ -211,6 +195,43 @@ def get_filtered_alert_events_for_run(conn, run_id, severity=None, sensor=None, 
         params.append(anomaly_type)
         
     sql += " ORDER BY start_step ASC"
+    
+    if limit is not None:
+        sql += " LIMIT ?"
+        params.append(limit)
+    
+    rows = conn.execute(sql, params).fetchall()
+    return rows
+
+def get_filtered_predictions_for_run(
+    conn, 
+    run_id: int,
+    machine_id: int | None = None,
+    anomaly_type: str | None = None,
+    target_sensor: str | None = None, 
+    limit=None
+):
+    sql = """
+        SELECT *
+        FROM model_predictions
+        WHERE run_id = ?
+    """
+    
+    params = [run_id]
+    
+    if machine_id is not None:
+        sql += " AND machine_id = ?"
+        params.append(machine_id)
+    
+    if anomaly_type is not None:
+        sql += " AND anomaly_type = ?"
+        params.append(anomaly_type)
+    
+    if target_sensor is not None:
+        sql += " AND target_sensor = ?"
+        params.append(target_sensor)
+    
+    sql += " ORDER BY step ASC, machine_id ASC, target_sensor ASC"
     
     if limit is not None:
         sql += " LIMIT ?"

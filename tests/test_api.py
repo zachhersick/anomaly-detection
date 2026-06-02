@@ -629,6 +629,146 @@ def test_read_predictions_for_run(client, temp_connection):
     assert len(data) == 2
     assert returned_steps == [1, 2]
     assert all(prediction["run_id"] == run_id_1 for prediction in data)
+    
+
+def seed_prediction_filter_test_data(temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    predictions = pd.DataFrame(
+        [
+            {
+                "step": 1,
+                "machine_id": 1,
+                "real_value": 0,
+                "prediction": 0,
+                "anomaly_score": 0.10,
+                "threshold": 0.35,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "step": 2,
+                "machine_id": 1,
+                "real_value": 1,
+                "prediction": 1,
+                "anomaly_score": 0.90,
+                "threshold": 0.35,
+                "anomaly_type": "spike",
+                "target_sensor": "temperature",
+            },
+            {
+                "step": 3,
+                "machine_id": 2,
+                "real_value": 0,
+                "prediction": 0,
+                "anomaly_score": 0.20,
+                "threshold": 0.35,
+                "anomaly_type": "normal",
+                "target_sensor": "pressure",
+            },
+            {
+                "step": 4,
+                "machine_id": 2,
+                "real_value": 1,
+                "prediction": 1,
+                "anomaly_score": 0.85,
+                "threshold": 0.35,
+                "anomaly_type": "drop",
+                "target_sensor": "current",
+            },
+        ]
+    )
+
+    load_dataframe_to_table(
+        temp_connection,
+        predictions,
+        "model_predictions",
+        run_id,
+    )
+
+    return run_id
+
+
+def test_read_predictions_filters_by_machine_id(client, temp_connection):
+    run_id = seed_prediction_filter_test_data(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/predictions?machine_id=1")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_steps = [prediction["step"] for prediction in data]
+
+    assert returned_steps == [1, 2]
+    assert all(prediction["machine_id"] == 1 for prediction in data)
+
+
+def test_read_predictions_filters_by_anomaly_type(client, temp_connection):
+    run_id = seed_prediction_filter_test_data(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/predictions?anomaly_type=spike")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["step"] == 2
+    assert data[0]["anomaly_type"] == "spike"
+
+
+def test_read_predictions_filters_by_target_sensor(client, temp_connection):
+    run_id = seed_prediction_filter_test_data(temp_connection)
+
+    response = client.get(f"/runs/{run_id}/predictions?target_sensor=temperature")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    returned_steps = [prediction["step"] for prediction in data]
+
+    assert returned_steps == [1, 2]
+    assert all(prediction["target_sensor"] == "temperature" for prediction in data)
+
+
+def test_read_predictions_combines_filters(client, temp_connection):
+    run_id = seed_prediction_filter_test_data(temp_connection)
+
+    response = client.get(
+        f"/runs/{run_id}/predictions"
+        "?machine_id=1"
+        "&anomaly_type=spike"
+        "&target_sensor=temperature"
+        "&limit=100"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["step"] == 2
+    assert data[0]["machine_id"] == 1
+    assert data[0]["anomaly_type"] == "spike"
+    assert data[0]["target_sensor"] == "temperature"
+
+
+def test_read_predictions_applies_limit_after_filters(client, temp_connection):
+    run_id = seed_prediction_filter_test_data(temp_connection)
+
+    response = client.get(
+        f"/runs/{run_id}/predictions"
+        "?target_sensor=temperature"
+        "&limit=1"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["step"] == 1
+    assert data[0]["target_sensor"] == "temperature"
 
 
 def test_read_alert_events_returns_404_when_run_missing(client):

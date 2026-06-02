@@ -13,6 +13,7 @@ from db_queries import (
     run_exists,
     event_exists,
     get_filtered_alert_events_for_run,
+    get_filtered_predictions_for_run,
 )
 
 from schemas import (
@@ -170,6 +171,9 @@ def read_sensor_readings_for_machine(
 @app.get("/runs/{run_id}/predictions", response_model=list[PredictionResponse])
 def read_predictions_for_run(
     run_id: int,
+    machine_id: int | None = None,
+    anomaly_type: str  | None = None,
+    target_sensor: str | None = None,
     limit: int | None = 100,
     conn=Depends(get_db_connection),
 ):
@@ -178,9 +182,12 @@ def read_predictions_for_run(
     """
     ensure_run_exists(conn, run_id)
     
-    rows = get_predictions_for_run(
+    rows = get_filtered_predictions_for_run(
         conn=conn,
         run_id=run_id,
+        machine_id=machine_id,
+        anomaly_type=anomaly_type,
+        target_sensor=target_sensor,
         limit=limit,
     )
 
