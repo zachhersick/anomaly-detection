@@ -1497,3 +1497,195 @@ def test_read_severity_distribution_returns_404_when_run_missing(client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Pipeline run not found"
+    
+    
+def test_read_dashboard_run(client, temp_connection):
+    run_id = insert_pipeline_run(temp_connection)
+
+    predictions = pd.DataFrame(
+        [
+            {
+                "step": 1,
+                "machine_id": 1,
+                "real_value": 0,
+                "prediction": 0,
+                "anomaly_score": 0.10,
+                "threshold": 0.35,
+                "anomaly_type": "normal",
+                "target_sensor": "temperature",
+            },
+            {
+                "step": 2,
+                "machine_id": 1,
+                "real_value": 1,
+                "prediction": 1,
+                "anomaly_score": 0.95,
+                "threshold": 0.35,
+                "anomaly_type": "spike",
+                "target_sensor": "temperature",
+            },
+            {
+                "step": 3,
+                "machine_id": 2,
+                "real_value": 1,
+                "prediction": 1,
+                "anomaly_score": 0.80,
+                "threshold": 0.35,
+                "anomaly_type": "drop",
+                "target_sensor": "pressure",
+            },
+        ]
+    )
+
+    row_alerts = pd.DataFrame(
+        [
+            {
+                "alert_id": 1,
+                "step": 2,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "sensor_value": 105.0,
+                "prediction": 1,
+                "anomaly_score": 0.95,
+                "severity": "CRITICAL",
+                "alert_type": "model_and_threshold",
+                "reason": "critical temperature spike",
+                "status": "open",
+                "anomaly_type": "spike",
+                "real_value": 1,
+            },
+            {
+                "alert_id": 2,
+                "step": 3,
+                "machine_id": 2,
+                "sensor": "pressure",
+                "sensor_value": 20.0,
+                "prediction": 1,
+                "anomaly_score": 0.80,
+                "severity": "WARNING",
+                "alert_type": "model_anomaly",
+                "reason": "pressure drop",
+                "status": "open",
+                "anomaly_type": "drop",
+                "real_value": 1,
+            },
+        ]
+    )
+
+    alert_events = pd.DataFrame(
+        [
+            {
+                "event_id": 1,
+                "machine_id": 1,
+                "sensor": "temperature",
+                "anomaly_type": "spike",
+                "start_step": 2,
+                "end_step": 2,
+                "duration": 1,
+                "alert_count": 1,
+                "max_severity": "CRITICAL",
+                "max_severity_reason": "critical temperature spike",
+                "max_anomaly_score": 0.95,
+                "mean_anomaly_score": 0.95,
+                "min_sensor_value": 105.0,
+                "max_sensor_value": 105.0,
+                "first_reason": "critical temperature spike",
+                "status": "open",
+                "real_value": 1,
+            },
+            {
+                "event_id": 2,
+                "machine_id": 2,
+                "sensor": "pressure",
+                "anomaly_type": "drop",
+                "start_step": 3,
+                "end_step": 3,
+                "duration": 1,
+                "alert_count": 1,
+                "max_severity": "WARNING",
+                "max_severity_reason": "pressure drop",
+                "max_anomaly_score": 0.80,
+                "mean_anomaly_score": 0.80,
+                "min_sensor_value": 20.0,
+                "max_sensor_value": 20.0,
+                "first_reason": "pressure drop",
+                "status": "open",
+                "real_value": 1,
+            },
+            {
+                "event_id": 3,
+                "machine_id": 2,
+                "sensor": "vibration",
+                "anomaly_type": "oscillation",
+                "start_step": 4,
+                "end_step": 4,
+                "duration": 1,
+                "alert_count": 1,
+                "max_severity": "CRITICAL",
+                "max_severity_reason": "vibration oscillation",
+                "max_anomaly_score": 0.90,
+                "mean_anomaly_score": 0.90,
+                "min_sensor_value": 9.0,
+                "max_sensor_value": 9.0,
+                "first_reason": "vibration oscillation",
+                "status": "open",
+                "real_value": 1,
+            },
+        ]
+    )
+
+    load_dataframe_to_table(temp_connection, predictions, "model_predictions", run_id)
+    load_dataframe_to_table(temp_connection, row_alerts, "row_alerts", run_id)
+    load_dataframe_to_table(temp_connection, alert_events, "alert_events", run_id)
+
+    response = client.get(f"/dashboard/runs/{run_id}")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["summary"]["run_id"] == run_id
+    assert data["summary"]["total_predictions"] == 3
+    assert data["summary"]["total_anomalies_predicted"] == 2
+    assert data["summary"]["total_row_alerts"] == 2
+    assert data["summary"]["total_alert_events"] == 3
+    assert data["summary"]["critical_alert_events"] == 2
+    assert data["summary"]["warning_alert_events"] == 1
+    assert data["summary"]["info_alert_events"] == 0
+    assert data["summary"]["machines_with_alerts"] == 2
+    assert data["summary"]["max_anomaly_score"] == 0.95
+    assert data["summary"]["mean_anomaly_score"] == pytest.approx(0.6166666667)
+
+    assert data["anomaly_type_distribution"] == [
+        {"anomaly_type": "drop", "count": 1},
+        {"anomaly_type": "oscillation", "count": 1},
+        {"anomaly_type": "spike", "count": 1},
+    ]
+
+    assert data["sensor_distribution"] == [
+        {"sensor": "pressure", "count": 1},
+        {"sensor": "temperature", "count": 1},
+        {"sensor": "vibration", "count": 1},
+    ]
+
+    assert data["severity_distribution"] == [
+        {"severity": "CRITICAL", "count": 2},
+        {"severity": "WARNING", "count": 1},
+    ]
+
+    top_critical_event_ids = [
+        event["event_id"] for event in data["top_critical_events"]
+    ]
+
+    assert top_critical_event_ids == [1, 3]
+    assert all(
+        event["max_severity"] == "CRITICAL"
+        for event in data["top_critical_events"]
+    )
+
+
+def test_read_dashboard_run_returns_404_when_run_missing(client):
+    response = client.get("/dashboard/runs/999")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Pipeline run not found"

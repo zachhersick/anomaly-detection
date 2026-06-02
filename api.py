@@ -19,6 +19,7 @@ from db_queries import (
     get_anomaly_type_distribution_for_run,
     get_sensor_distribution_for_run,
     get_severity_distribution_for_run,
+    get_top_critical_events_for_run,
 )
 
 from schemas import (
@@ -33,6 +34,7 @@ from schemas import (
     AnomalyTypeDistributionResponse,
     SensorDistributionResponse,
     SeverityDistributionResponse,
+    DashboardRunResponse,
 )
 
 
@@ -242,6 +244,21 @@ def read_severity_distribution_for_run(run_id: int, conn=Depends(get_db_connecti
     distribution = get_severity_distribution_for_run(conn, run_id)
     
     return distribution
+
+
+@app.get("/dashboard/runs/{run_id}", response_model=DashboardRunResponse)
+def read_dashboard_run(run_id: int, conn=Depends(get_db_connection)):
+    ensure_run_exists(conn, run_id)
+    
+    return {
+        "summary": get_run_summary(conn, run_id),
+        "anomaly_type_distribution": get_anomaly_type_distribution_for_run(conn, run_id),
+        "sensor_distribution": get_sensor_distribution_for_run(conn, run_id),
+        "severity_distribution": get_severity_distribution_for_run(conn, run_id),
+        "top_critical_events": rows_to_dicts(
+            get_top_critical_events_for_run(conn, run_id, limit=5)
+        ),
+    }
 
 def ensure_run_exists(conn, run_id: int):
     response = run_exists(conn, run_id)

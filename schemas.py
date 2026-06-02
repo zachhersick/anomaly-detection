@@ -133,3 +133,10 @@ class SensorDistributionResponse(BaseModel):
 class SeverityDistributionResponse(BaseModel):
     severity: str
     count: int
+    
+class DashboardRunResponse(BaseModel):
+    summary: RunSummaryResponse
+    anomaly_type_distribution: list[AnomalyTypeDistributionResponse]
+    sensor_distribution: list[SensorDistributionResponse]
+    severity_distribution: list[SeverityDistributionResponse]
+    top_critical_events: list[AlertEventResponse]

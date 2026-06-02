@@ -445,3 +445,19 @@ def get_severity_distribution_for_run(conn, run_id: int):
         )
         
     return distribution
+
+
+def get_top_critical_events_for_run(conn, run_id: int, limit: int = 5):
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM alert_events
+        WHERE run_id = ?
+            AND max_severity = ?
+        ORDER BY max_anomaly_score DESC, start_step ASC
+        LIMIT ?
+        """,
+        (run_id, 'CRITICAL', limit,),
+    ).fetchall()
+    
+    return rows
