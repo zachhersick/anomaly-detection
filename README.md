@@ -62,7 +62,7 @@ model.py
     ↓
 predictions.csv
     ↓
-threshold_results.csv
+outputs/threshold_results.csv
     ↓
 feature_importance.csv
 
@@ -108,6 +108,12 @@ alerts.py
 alert_events.py
 ```
 
+After the CSV outputs are created, they can be loaded into SQLite with:
+
+```bash
+python load_to_db.py
+```
+
 ---
 
 ## Repository Structure
@@ -116,7 +122,7 @@ alert_events.py
 api.py                     FastAPI application and API routes
 schemas.py                 Pydantic response models for API responses
 
-db.py                      SQLite connection and table creation
+db.py                      SQLite connection, table creation, and indexes
 db_queries.py              Read-only SQLite query helpers
 load_to_db.py              Loads CSV pipeline outputs into SQLite
 
@@ -276,7 +282,7 @@ Outputs:
 
 ```text
 predictions.csv
-threshold_results.csv
+outputs/threshold_results.csv
 feature_importance.csv
 ```
 
@@ -469,6 +475,21 @@ pipeline_runs
 
 and attaches the same `run_id` to all inserted rows. This makes it possible to compare multiple pipeline runs over time.
 
+### SQLite Indexes
+
+`db.py` also creates indexes for common API query paths.
+
+The indexes support:
+
+```text
+alert event lookup by run_id and start_step
+alert event filtering by severity, sensor, and anomaly_type
+prediction lookup by run_id, machine_id, anomaly_type, target_sensor, and step
+sensor reading lookup by run_id, machine_id, and step
+```
+
+These indexes are important because the API supports filtering and pagination. Without indexes, SQLite may need to scan entire tables as stored pipeline runs grow.
+
 ---
 
 ## FastAPI REST API
@@ -478,7 +499,7 @@ The project exposes stored results through a FastAPI API.
 Start the API server:
 
 ```bash
-uvicorn api:app --reload
+python -m uvicorn api:app --reload
 ```
 
 Open the interactive docs:
@@ -493,24 +514,123 @@ http://127.0.0.1:8000/docs
 GET /health
 GET /runs
 GET /runs/latest
+
 GET /runs/{run_id}/events
 GET /runs/{run_id}/events/critical
 GET /runs/{run_id}/events/{event_id}/alerts
-GET /runs/{run_id}/machines/{machine_id}/readings?limit=100
-GET /runs/{run_id}/predictions?limit=100
+
+GET /runs/{run_id}/machines/{machine_id}/readings
+GET /runs/{run_id}/predictions
 ```
 
-### Example Requests
+### Event Filtering and Pagination
+
+`GET /runs/{run_id}/events` supports:
 
 ```text
-http://127.0.0.1:8000/health
-http://127.0.0.1:8000/runs
-http://127.0.0.1:8000/runs/latest
+severity
+sensor
+anomaly_type
+limit
+offset
+```
+
+Example requests:
+
+```text
 http://127.0.0.1:8000/runs/1/events
-http://127.0.0.1:8000/runs/1/events/critical
-http://127.0.0.1:8000/runs/1/events/1/alerts
-http://127.0.0.1:8000/runs/1/machines/1/readings?limit=5
-http://127.0.0.1:8000/runs/1/predictions?limit=5
+http://127.0.0.1:8000/runs/1/events?severity=CRITICAL
+http://127.0.0.1:8000/runs/1/events?sensor=temperature
+http://127.0.0.1:8000/runs/1/events?anomaly_type=spike
+http://127.0.0.1:8000/runs/1/events?severity=CRITICAL&sensor=temperature&limit=100&offset=0
+```
+
+Results are ordered by:
+
+```text
+start_step ASC
+```
+
+### Prediction Filtering and Pagination
+
+`GET /runs/{run_id}/predictions` supports:
+
+```text
+machine_id
+anomaly_type
+target_sensor
+limit
+offset
+```
+
+Example requests:
+
+```text
+http://127.0.0.1:8000/runs/1/predictions
+http://127.0.0.1:8000/runs/1/predictions?machine_id=1
+http://127.0.0.1:8000/runs/1/predictions?anomaly_type=spike
+http://127.0.0.1:8000/runs/1/predictions?target_sensor=temperature
+http://127.0.0.1:8000/runs/1/predictions?machine_id=1&target_sensor=temperature&limit=100&offset=0
+```
+
+Results are ordered by:
+
+```text
+step ASC, machine_id ASC, target_sensor ASC
+```
+
+### Sensor Reading Pagination
+
+`GET /runs/{run_id}/machines/{machine_id}/readings` supports:
+
+```text
+limit
+offset
+```
+
+Example requests:
+
+```text
+http://127.0.0.1:8000/runs/1/machines/1/readings
+http://127.0.0.1:8000/runs/1/machines/1/readings?limit=100
+http://127.0.0.1:8000/runs/1/machines/1/readings?limit=100&offset=100
+```
+
+Results are ordered by:
+
+```text
+step ASC
+```
+
+### Pagination Validation
+
+For paginated endpoints:
+
+```text
+limit must be between 1 and 500
+offset must be greater than or equal to 0
+```
+
+Invalid pagination values return a FastAPI validation error:
+
+```text
+422 Validation Error
+```
+
+Examples of invalid requests:
+
+```text
+/runs/1/events?limit=0
+/runs/1/events?limit=501
+/runs/1/events?offset=-1
+
+/runs/1/predictions?limit=0
+/runs/1/predictions?limit=501
+/runs/1/predictions?offset=-1
+
+/runs/1/machines/1/readings?limit=0
+/runs/1/machines/1/readings?limit=501
+/runs/1/machines/1/readings?offset=-1
 ```
 
 ### Response Models
@@ -539,6 +659,14 @@ If the run does not exist, the API returns:
 404 Pipeline run not found
 ```
 
+Event-specific endpoints validate that the requested `event_id` exists for the selected run.
+
+If the event does not exist, the API returns:
+
+```text
+404 Alert event not found
+```
+
 ---
 
 ## Testing
@@ -551,15 +679,38 @@ Run all tests:
 python -m pytest
 ```
 
+Run only API tests:
+
+```bash
+python -m pytest tests/test_api.py
+```
+
+Run only database tests:
+
+```bash
+python -m pytest tests/test_db.py
+```
+
 The test suite covers:
 
 ```text
+synthetic data generation
+feature engineering
+model training helpers
+evaluation helpers
+alert generation
 alert event grouping
 SQLite table creation/loading
+SQLite indexes
 SQLite query helpers
 FastAPI endpoints
+API filtering
+API pagination
+API query validation
 API response models
 missing-run validation
+missing-event validation
+pipeline orchestration
 ```
 
 ---
@@ -639,7 +790,7 @@ This creates the CSV outputs.
 python load_to_db.py
 ```
 
-This creates/updates:
+This creates or updates:
 
 ```text
 anomaly_detection.db
@@ -648,7 +799,7 @@ anomaly_detection.db
 ### Start the API
 
 ```bash
-uvicorn api:app --reload
+python -m uvicorn api:app --reload
 ```
 
 Then open:
@@ -687,12 +838,19 @@ sensor_data_raw.csv
 sensor_data_features.csv
 feature_row_retention.csv
 predictions.csv
-threshold_results.csv
 feature_importance.csv
 alerts.csv
 alert_events.csv
 anomaly_detection.db
 ```
+
+The threshold sweep output is stored under:
+
+```text
+outputs/threshold_results.csv
+```
+
+Generated files should not be committed.
 
 ---
 
@@ -710,21 +868,26 @@ Row-level alert generation
 Grouped alert event generation
 SQLite schema and persistence layer
 SQLite query helpers
+SQLite indexes for common API query paths
 FastAPI read API
 Pydantic response models
 API missing-run validation
+API missing-event validation
+Event filtering
+Prediction filtering
+Pagination with limit and offset
+Pagination validation
 Pytest coverage
 GitHub Actions CI
+MIT license
 ```
 
 Next planned improvements:
 
 ```text
-Event-level 404 validation
-API pagination/filtering improvements
-Refactor scripts into more reusable functions
+Add run summary endpoint for dashboard usage
+Add dashboard-oriented aggregate queries
 Persist feature rows if needed
-Add API examples to docs
 Add deployment configuration
 Build a simple dashboard or frontend
 ```
@@ -761,6 +924,7 @@ model thresholding
 alert/event logic
 persistent storage
 REST API design
+database indexing
 test coverage
 CI
 ```
