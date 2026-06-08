@@ -2,119 +2,67 @@
 
 ![CI](https://github.com/zachhersick/anomaly-detection/actions/workflows/ci.yml/badge.svg)
 
-An end-to-end machine learning systems project for simulated industrial anomaly detection.
+An end-to-end ML systems project for detecting and visualizing simulated industrial machine anomalies.
 
-This project generates synthetic multi-machine sensor data, engineers temporal features, trains an anomaly detection model, evaluates performance, creates row-level alerts, groups alerts into operational events, stores results in SQLite, and exposes the stored results through a FastAPI REST API.
-
-The goal is not just to train a model. The goal is to build a realistic ML systems pipeline that connects:
+The project generates synthetic sensor data, engineers time-series features, trains a machine learning model, creates alerts, groups alerts into operational events, stores results in SQLite, exposes results through a FastAPI backend, and displays them in a Streamlit dashboard.
 
 ```text
-data generation
+Synthetic data
     ↓
-feature engineering
+Feature engineering
     ↓
-model training and thresholding
+Model training
     ↓
-alert generation
+Prediction + thresholding
     ↓
+Row-level alerts
+    ↓
+Grouped alert events
+    ↓
+SQLite storage
+    ↓
+FastAPI backend
+    ↓
+Streamlit dashboard
+```
+
+---
+
+## Project Goals
+
+This project is designed to demonstrate a realistic ML systems workflow, not just a notebook model.
+
+It focuses on:
+
+```text
+synthetic data generation
+time-series feature engineering
+model training and evaluation
+alerting logic
 event grouping
-    ↓
-SQLite persistence
-    ↓
-FastAPI read API
-    ↓
-dashboard-ready API layer
-    ↓
-future dashboard or deployment
+database persistence
+REST API design
+dashboard-ready endpoints
+basic frontend visualization
+testing and CI
 ```
 
 ---
 
-## Project Overview
-
-Industrial systems produce continuous sensor readings. A useful anomaly detection platform needs to do more than classify rows as normal or anomalous. It should also:
-
-- model time-series behavior
-- detect multiple anomaly patterns
-- score anomalies with a model
-- apply safety threshold logic
-- explain why alerts were created
-- group noisy row-level alerts into operational events
-- persist pipeline outputs for later analysis
-- expose results through an API
-- support dashboard-ready aggregate views
-
-This project simulates that workflow using synthetic industrial sensor data.
-
----
-
-## Current Architecture
+## Tech Stack
 
 ```text
-generator.py
-    ↓
-sensor_data_raw.csv
-
-features.py
-    ↓
-sensor_data_features.csv
-    ↓
-feature_row_retention.csv
-
-model.py
-    ↓
-predictions.csv
-    ↓
-outputs/threshold_results.csv
-    ↓
-feature_importance.csv
-
-evaluate.py
-    ↓
-console evaluation report
-
-alerts.py
-    ↓
-alerts.csv
-
-alert_events.py
-    ↓
-alert_events.csv
-
-load_to_db.py
-    ↓
-anomaly_detection.db
-
-db_queries.py
-    ↓
-read/query helpers and aggregate helpers
-
-api.py
-    ↓
-FastAPI REST endpoints and dashboard-ready API responses
-```
-
-The full script pipeline can be run with:
-
-```bash
-python run_pipeline.py
-```
-
-`run_pipeline.py` runs the scripts in this order:
-
-```text
-generator.py
-features.py
-model.py
-evaluate.py
-alerts.py
-alert_events.py
-```
-
-After the CSV outputs are created, they can be loaded into SQLite with:
-
-```bash
-python load_to_db.py
+Python
+pandas
+NumPy
+scikit-learn
+SQLite
+FastAPI
+Pydantic
+Uvicorn
+Streamlit
+pytest
+GitHub Actions
 ```
 
 ---
@@ -122,35 +70,32 @@ python load_to_db.py
 ## Repository Structure
 
 ```text
-api.py                     FastAPI application and API routes
-schemas.py                 Pydantic response models for API responses
+generator.py              Generate synthetic industrial sensor data
+features.py               Create temporal/statistical features
+model.py                  Train model and write predictions
+evaluate.py               Print evaluation report
+alerts.py                 Create row-level alerts
+alert_events.py           Group row-level alerts into alert events
+run_pipeline.py           Run the full ML pipeline
 
-db.py                      SQLite connection, table creation, and indexes
-db_queries.py              Read-only SQLite query and aggregate helpers
-load_to_db.py              Loads CSV pipeline outputs into SQLite
+db.py                     SQLite schema, connection, and indexes
+load_to_db.py             Load generated outputs into SQLite
+db_queries.py             Read/query helpers for the API
 
-run_pipeline.py            Runs the main ML pipeline scripts in order
-generator.py               Generates synthetic industrial sensor data
-features.py                Builds temporal and statistical features
-model.py                   Trains model, runs threshold sweep, writes predictions
-evaluate.py                Prints model evaluation report
-alerts.py                  Converts predictions into row-level alerts
-alert_events.py            Groups row-level alerts into event-level incidents
+api.py                    FastAPI backend
+schemas.py                Pydantic response models
+dashboard.py              Streamlit dashboard client
 
-tests/                     Pytest test suite
-.github/workflows/ci.yml   GitHub Actions CI workflow
-
-requirements.txt           Python dependencies
-README.md                  Project documentation
+tests/                    Pytest suite
+.github/workflows/ci.yml  GitHub Actions CI
+requirements.txt          Python dependencies
 ```
 
 ---
 
-## Synthetic Data Generation
+## Synthetic Data
 
-`generator.py` creates synthetic industrial sensor data for multiple machines.
-
-### Sensors
+The generator simulates multiple industrial machines with the following sensors:
 
 ```text
 temperature
@@ -161,7 +106,7 @@ voltage
 current
 ```
 
-### Simulated Anomaly Types
+Supported anomaly types:
 
 ```text
 spike
@@ -172,23 +117,7 @@ stuck_sensor
 impossible_value
 ```
 
-### Generator Details
-
-The generator currently uses:
-
-```text
-num_machines = 10
-num_timesteps = 5000
-fixed_seed = 295
-```
-
-This produces:
-
-```text
-50,000 raw sensor rows
-```
-
-The generator models each machine independently, tracks per-machine state, and applies anomalies to a target sensor for a selected duration.
+The generated dataset includes normal behavior, noisy sensor readings, and labeled anomaly periods.
 
 Output:
 
@@ -200,133 +129,79 @@ sensor_data_raw.csv
 
 ## Feature Engineering
 
-`features.py` reads:
+`features.py` creates time-series features per machine and sensor.
+
+Feature examples:
 
 ```text
-sensor_data_raw.csv
+rolling mean
+rolling standard deviation
+rolling min/max/range
+delta features
+absolute delta features
+z-scores
+short-vs-long rolling mean differences
+rolling slope
+same-direction run length
+centered zero-crossing count
+lag autocorrelation
 ```
 
-and writes:
+Outputs:
 
 ```text
 sensor_data_features.csv
 feature_row_retention.csv
 ```
 
-Features are built per machine and per sensor.
-
-### Feature Categories
-
-```text
-delta
-absolute delta
-rolling mean
-rolling standard deviation
-rolling min/max/range
-z-score
-5-step and 10-step difference
-same-direction run length
-sign-change count
-short-vs-long rolling mean difference
-rolling slope
-cumulative change
-long-baseline deviation
-lag autocorrelation
-centered zero-crossing count
-trend ratio
-center balance
-```
-
-These features are meant to help the model detect both obvious and temporal anomalies, including drift, oscillation, stuck sensors, and sudden jumps.
-
 ---
 
 ## Model Training
 
-`model.py` trains a Random Forest classifier on the engineered features.
+`model.py` trains a Random Forest classifier to predict whether a row is anomalous.
 
-Current model setup:
-
-```text
-RandomForestClassifier
-n_estimators = 300
-class_weight = balanced
-random_state = 42
-test_size = 0.2
-```
-
-The model predicts whether a row is anomalous.
-
-The model outputs anomaly probabilities, then applies classification thresholds.
-
-### Threshold Sweep
-
-The model currently evaluates:
-
-```text
-0.30
-0.35
-0.40
-0.45
-0.50
-0.55
-0.60
-0.65
-0.70
-```
-
-The selected default threshold is:
-
-```text
-0.35
-```
-
-Outputs:
+The model writes:
 
 ```text
 predictions.csv
-outputs/threshold_results.csv
 feature_importance.csv
+outputs/threshold_results.csv
 ```
 
-`predictions.csv` is written using the selected default threshold.
-
----
-
-## Model Evaluation
-
-`evaluate.py` reads model outputs and prints an evaluation report.
-
-The evaluation includes:
+The project currently uses a selected anomaly threshold of:
 
 ```text
-confusion matrix
-accuracy
-precision
-recall
-F1 score
-false positives
-false negatives
-recall by anomaly type
-recall by target sensor
-drift recall by sensor
-oscillation recall by sensor
-top feature importances
-feature-row retention
+0.35
 ```
-
-This is used to inspect both overall model performance and weak spots by anomaly type.
 
 ---
 
-## Alert Generation
+## Alerting
 
 `alerts.py` converts model predictions into row-level alerts.
 
-Input:
+Each alert includes:
 
 ```text
-predictions.csv
+machine_id
+step
+sensor
+sensor_value
+prediction
+anomaly_score
+severity
+alert_type
+reason
+status
+anomaly_type
+```
+
+Severity levels:
+
+```text
+INFO
+WARNING
+CRITICAL
 ```
 
 Output:
@@ -335,49 +210,21 @@ Output:
 alerts.csv
 ```
 
-Each alert combines:
-
-```text
-model prediction
-anomaly score
-target sensor
-sensor value
-safety threshold logic
-severity
-alert type
-human-readable reason
-status
-```
-
-### Alert Types
-
-```text
-model_anomaly
-model_and_threshold
-```
-
-### Severity Levels
-
-```text
-INFO
-WARNING
-CRITICAL
-```
-
-Model-only alerts are created when the model predicts an anomaly but the sensor value does not cross a hard safety threshold.
-
-Model-and-threshold alerts are created when the model predicts an anomaly and the sensor value also violates a warning or critical threshold.
-
 ---
 
 ## Alert Event Grouping
 
-`alert_events.py` groups row-level alerts into higher-level operational events.
+`alert_events.py` groups consecutive row-level alerts into higher-level operational events.
 
-Input:
+This prevents one real anomaly from appearing as many unrelated alerts.
+
+Grouping is based on:
 
 ```text
-alerts.csv
+machine_id
+sensor
+anomaly_type
+step gap
 ```
 
 Output:
@@ -386,56 +233,33 @@ Output:
 alert_events.csv
 ```
 
-This matters because one real anomaly can trigger many consecutive row-level alerts. For example, a stuck sensor lasting 80 steps should be treated as one operational event, not 80 unrelated incidents.
-
-### Grouping Rule
-
-Alerts are grouped into the same event when they share:
+Each event tracks:
 
 ```text
-machine_id
-sensor
-anomaly_type
-step gap <= MAX_STEP_GAP
-```
-
-Current setting:
-
-```text
-MAX_STEP_GAP = 3
-```
-
-Each grouped event tracks:
-
-```text
-event_id
-machine_id
-sensor
-anomaly_type
 start_step
 end_step
 duration
 alert_count
 max_severity
-max_severity_reason
 max_anomaly_score
 mean_anomaly_score
-min_sensor_value
-max_sensor_value
-first_reason
+sensor value range
 status
-real_value
 ```
 
 ---
 
 ## SQLite Storage
 
-The project includes a SQLite persistence layer.
+The project stores pipeline outputs in SQLite.
 
-### Database Setup
+Database file:
 
-`db.py` creates:
+```text
+anomaly_detection.db
+```
+
+Tables:
 
 ```text
 pipeline_runs
@@ -445,59 +269,19 @@ row_alerts
 alert_events
 ```
 
-The database file is:
-
-```text
-anomaly_detection.db
-```
-
-This file is generated locally and should not be committed.
-
-### Load Pipeline Outputs into SQLite
-
-After running the pipeline, load the CSV outputs into SQLite:
+Load generated pipeline outputs into SQLite:
 
 ```bash
 python load_to_db.py
 ```
 
-This loads:
+Each load creates a new `run_id`, allowing multiple pipeline runs to be stored and compared.
 
-```text
-sensor_data_raw.csv  -> sensor_readings
-predictions.csv      -> model_predictions
-alerts.csv           -> row_alerts
-alert_events.csv     -> alert_events
-```
-
-Each load creates a new row in:
-
-```text
-pipeline_runs
-```
-
-and attaches the same `run_id` to all inserted rows. This makes it possible to compare multiple pipeline runs over time.
-
-### SQLite Indexes
-
-`db.py` also creates indexes for common API query paths.
-
-The indexes support:
-
-```text
-alert event lookup by run_id and start_step
-alert event filtering by severity, sensor, and anomaly_type
-prediction lookup by run_id, machine_id, anomaly_type, target_sensor, and step
-sensor reading lookup by run_id, machine_id, and step
-```
-
-These indexes are important because the API supports filtering and pagination. Without indexes, SQLite may need to scan entire tables as stored pipeline runs grow.
+The database also includes indexes for common API query paths, including event filtering, prediction filtering, and sensor reading pagination.
 
 ---
 
-## FastAPI REST API
-
-The project exposes stored results through a FastAPI API.
+## FastAPI Backend
 
 Start the API server:
 
@@ -505,13 +289,13 @@ Start the API server:
 python -m uvicorn api:app --reload
 ```
 
-Open the interactive docs:
+Open API docs:
 
 ```text
 http://127.0.0.1:8000/docs
 ```
 
-### API Endpoints
+Main endpoints:
 
 ```text
 GET /health
@@ -523,401 +307,155 @@ GET /runs/{run_id}/summary
 GET /runs/{run_id}/events
 GET /runs/{run_id}/events/critical
 GET /runs/{run_id}/events/{event_id}/alerts
+
 GET /runs/{run_id}/events/anomaly-type-distribution
 GET /runs/{run_id}/events/sensor-distribution
 GET /runs/{run_id}/events/severity-distribution
 
-GET /runs/{run_id}/machines/{machine_id}/readings
 GET /runs/{run_id}/predictions
+GET /runs/{run_id}/machines/{machine_id}/readings
 
 GET /dashboard/runs/{run_id}
 ```
 
 ---
 
-## Run Summary Endpoint
+## API Features
 
-`GET /runs/{run_id}/summary` returns dashboard-style aggregate metrics for one pipeline run.
-
-Example request:
+The API supports:
 
 ```text
-http://127.0.0.1:8000/runs/1/summary
+run validation
+event validation
+filtering
+pagination
+response models
+dashboard-ready aggregate responses
 ```
 
-The response includes:
+Filtering examples:
 
 ```text
-run_id
-total_predictions
-total_anomalies_predicted
-total_row_alerts
-total_alert_events
-critical_alert_events
-warning_alert_events
-info_alert_events
-machines_with_alerts
-max_anomaly_score
-mean_anomaly_score
+GET /runs/1/events?severity=CRITICAL
+GET /runs/1/events?sensor=temperature
+GET /runs/1/events?anomaly_type=spike
+GET /runs/1/predictions?machine_id=1
+GET /runs/1/predictions?target_sensor=temperature
 ```
 
-This endpoint is useful for dashboards because it gives a high-level overview of one run without requiring the client to request thousands of prediction, alert, or event rows.
-
----
-
-## Event Filtering and Pagination
-
-`GET /runs/{run_id}/events` supports:
+Pagination examples:
 
 ```text
-severity
-sensor
-anomaly_type
-limit
-offset
+GET /runs/1/events?limit=100&offset=0
+GET /runs/1/predictions?limit=100&offset=100
+GET /runs/1/machines/1/readings?limit=100&offset=200
 ```
 
-Example requests:
+Pagination rules:
 
 ```text
-http://127.0.0.1:8000/runs/1/events
-http://127.0.0.1:8000/runs/1/events?severity=CRITICAL
-http://127.0.0.1:8000/runs/1/events?sensor=temperature
-http://127.0.0.1:8000/runs/1/events?anomaly_type=spike
-http://127.0.0.1:8000/runs/1/events?severity=CRITICAL&sensor=temperature&limit=100&offset=0
+limit: 1 to 500
+offset: 0 or greater
 ```
 
-Results are ordered by:
-
-```text
-start_step ASC
-```
-
----
-
-## Chart-Ready Event Distribution Endpoints
-
-These endpoints return aggregate event counts that can be used directly by a dashboard.
-
-### Anomaly Type Distribution
-
-`GET /runs/{run_id}/events/anomaly-type-distribution`
-
-Example request:
-
-```text
-http://127.0.0.1:8000/runs/1/events/anomaly-type-distribution
-```
-
-Example response shape:
-
-```json
-[
-  {
-    "anomaly_type": "spike",
-    "count": 12
-  },
-  {
-    "anomaly_type": "drift",
-    "count": 7
-  }
-]
-```
-
-Results are ordered by:
-
-```text
-count DESC, anomaly_type ASC
-```
-
-### Sensor Distribution
-
-`GET /runs/{run_id}/events/sensor-distribution`
-
-Example request:
-
-```text
-http://127.0.0.1:8000/runs/1/events/sensor-distribution
-```
-
-Example response shape:
-
-```json
-[
-  {
-    "sensor": "temperature",
-    "count": 10
-  },
-  {
-    "sensor": "pressure",
-    "count": 6
-  }
-]
-```
-
-Results are ordered by:
-
-```text
-count DESC, sensor ASC
-```
-
-### Severity Distribution
-
-`GET /runs/{run_id}/events/severity-distribution`
-
-Example request:
-
-```text
-http://127.0.0.1:8000/runs/1/events/severity-distribution
-```
-
-Example response shape:
-
-```json
-[
-  {
-    "severity": "CRITICAL",
-    "count": 4
-  },
-  {
-    "severity": "WARNING",
-    "count": 9
-  },
-  {
-    "severity": "INFO",
-    "count": 3
-  }
-]
-```
-
-Results are ordered by severity priority:
-
-```text
-CRITICAL
-WARNING
-INFO
-```
-
----
-
-## Prediction Filtering and Pagination
-
-`GET /runs/{run_id}/predictions` supports:
-
-```text
-machine_id
-anomaly_type
-target_sensor
-limit
-offset
-```
-
-Example requests:
-
-```text
-http://127.0.0.1:8000/runs/1/predictions
-http://127.0.0.1:8000/runs/1/predictions?machine_id=1
-http://127.0.0.1:8000/runs/1/predictions?anomaly_type=spike
-http://127.0.0.1:8000/runs/1/predictions?target_sensor=temperature
-http://127.0.0.1:8000/runs/1/predictions?machine_id=1&target_sensor=temperature&limit=100&offset=0
-```
-
-Results are ordered by:
-
-```text
-step ASC, machine_id ASC, target_sensor ASC
-```
-
----
-
-## Sensor Reading Pagination
-
-`GET /runs/{run_id}/machines/{machine_id}/readings` supports:
-
-```text
-limit
-offset
-```
-
-Example requests:
-
-```text
-http://127.0.0.1:8000/runs/1/machines/1/readings
-http://127.0.0.1:8000/runs/1/machines/1/readings?limit=100
-http://127.0.0.1:8000/runs/1/machines/1/readings?limit=100&offset=100
-```
-
-Results are ordered by:
-
-```text
-step ASC
-```
+Invalid values return FastAPI validation errors.
 
 ---
 
 ## Dashboard Endpoint
 
-`GET /dashboard/runs/{run_id}` returns a combined dashboard-ready payload for one pipeline run.
-
-Example request:
+The main dashboard endpoint is:
 
 ```text
-http://127.0.0.1:8000/dashboard/runs/1
+GET /dashboard/runs/{run_id}
 ```
 
-The response includes:
+It returns:
 
 ```text
-summary
-anomaly_type_distribution
-sensor_distribution
-severity_distribution
-top_critical_events
+summary metrics
+anomaly type distribution
+sensor distribution
+severity distribution
+top critical events
 ```
 
-This endpoint is designed for a future dashboard client. Instead of making separate requests for summary metrics, chart distributions, and critical event rows, the dashboard can make one request and receive the main overview payload.
+This lets the dashboard load the main run overview with one API request.
 
-Example response shape:
+---
 
-```json
-{
-  "summary": {
-    "run_id": 1,
-    "total_predictions": 50000,
-    "total_anomalies_predicted": 4200,
-    "total_row_alerts": 900,
-    "total_alert_events": 120,
-    "critical_alert_events": 15,
-    "warning_alert_events": 70,
-    "info_alert_events": 35,
-    "machines_with_alerts": 10,
-    "max_anomaly_score": 0.98,
-    "mean_anomaly_score": 0.14
-  },
-  "anomaly_type_distribution": [
-    {
-      "anomaly_type": "spike",
-      "count": 30
-    }
-  ],
-  "sensor_distribution": [
-    {
-      "sensor": "temperature",
-      "count": 20
-    }
-  ],
-  "severity_distribution": [
-    {
-      "severity": "CRITICAL",
-      "count": 15
-    }
-  ],
-  "top_critical_events": [
-    {
-      "run_id": 1,
-      "event_id": 7,
-      "machine_id": 3,
-      "sensor": "temperature",
-      "anomaly_type": "spike",
-      "start_step": 120,
-      "end_step": 125,
-      "duration": 6,
-      "alert_count": 6,
-      "max_severity": "CRITICAL",
-      "max_severity_reason": "temperature exceeded critical threshold",
-      "max_anomaly_score": 0.98,
-      "mean_anomaly_score": 0.94,
-      "min_sensor_value": 105.0,
-      "max_sensor_value": 112.0,
-      "first_reason": "model and threshold alert",
-      "status": "open",
-      "real_value": 1
-    }
-  ]
-}
+## Streamlit Dashboard
+
+The project includes a Streamlit dashboard that calls the FastAPI backend.
+
+Start the API first:
+
+```bash
+python -m uvicorn api:app --reload
+```
+
+Then start the dashboard in a second terminal:
+
+```bash
+streamlit run dashboard.py
+```
+
+The dashboard displays:
+
+```text
+run summary metrics
+anomaly type distribution chart
+sensor distribution chart
+severity distribution chart
+top critical events table
+raw API response for debugging
+```
+
+The dashboard does not read CSV files or SQLite directly. It uses FastAPI as the data access layer.
+
+```text
+Streamlit -> FastAPI -> SQLite
 ```
 
 ---
 
-## Pagination Validation
+## Running the Project
 
-For paginated endpoints:
+### 1. Install dependencies
 
-```text
-limit must be between 1 and 500
-offset must be greater than or equal to 0
+```bash
+pip install -r requirements.txt
 ```
 
-Invalid pagination values return a FastAPI validation error:
+### 2. Run the ML pipeline
 
-```text
-422 Validation Error
+```bash
+python run_pipeline.py
 ```
 
-Examples of invalid requests:
+This creates the generated CSV outputs.
 
-```text
-/runs/1/events?limit=0
-/runs/1/events?limit=501
-/runs/1/events?offset=-1
+### 3. Load outputs into SQLite
 
-/runs/1/predictions?limit=0
-/runs/1/predictions?limit=501
-/runs/1/predictions?offset=-1
-
-/runs/1/machines/1/readings?limit=0
-/runs/1/machines/1/readings?limit=501
-/runs/1/machines/1/readings?offset=-1
+```bash
+python load_to_db.py
 ```
 
----
+### 4. Start the API
 
-## Response Models
-
-`schemas.py` defines Pydantic response models for:
-
-```text
-HealthResponse
-PipelineRunResponse
-LatestRunResponse
-AlertEventResponse
-RowAlertResponse
-SensorReadingResponse
-PredictionResponse
-RunSummaryResponse
-AnomalyTypeDistributionResponse
-SensorDistributionResponse
-SeverityDistributionResponse
-DashboardRunResponse
+```bash
+python -m uvicorn api:app --reload
 ```
 
-These models make the API contract explicit and improve the generated `/docs` page.
+### 5. Start the dashboard
 
----
-
-## Error Handling
-
-Run-specific endpoints validate that the requested `run_id` exists.
-
-If the run does not exist, the API returns:
-
-```text
-404 Pipeline run not found
-```
-
-Event-specific endpoints validate that the requested `event_id` exists for the selected run.
-
-If the event does not exist, the API returns:
-
-```text
-404 Alert event not found
+```bash
+streamlit run dashboard.py
 ```
 
 ---
 
 ## Testing
-
-The project uses `pytest`.
 
 Run all tests:
 
@@ -925,13 +463,13 @@ Run all tests:
 python -m pytest
 ```
 
-Run only API tests:
+Run API tests only:
 
 ```bash
 python -m pytest tests/test_api.py
 ```
 
-Run only database tests:
+Run database tests only:
 
 ```bash
 python -m pytest tests/test_db.py
@@ -940,25 +478,22 @@ python -m pytest tests/test_db.py
 The test suite covers:
 
 ```text
-synthetic data generation
+data generation
 feature engineering
-model training helpers
-evaluation helpers
-alert generation
+model helpers
+alert creation
 alert event grouping
-SQLite table creation/loading
-SQLite indexes
-SQLite query helpers
-FastAPI endpoints
-API filtering
-API pagination
-API query validation
-API response models
-missing-run validation
-missing-event validation
-run summary endpoint
-chart-ready distribution endpoints
-dashboard API endpoint
+database schema
+database loading
+database indexes
+query helpers
+FastAPI routes
+filtering
+pagination
+validation
+summary endpoint
+distribution endpoints
+dashboard endpoint
 pipeline orchestration
 ```
 
@@ -966,116 +501,32 @@ pipeline orchestration
 
 ## Continuous Integration
 
-GitHub Actions is configured in:
-
-```text
-.github/workflows/ci.yml
-```
-
-The workflow runs on:
+GitHub Actions runs the test suite on:
 
 ```text
 push
 pull_request
 ```
 
-It:
+Workflow file:
 
 ```text
-checks out the repository
-sets up Python 3.11
-installs requirements.txt
-runs python -m pytest
-```
-
----
-
-## Installation
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/zachhersick/anomaly-detection.git
-cd anomaly-detection
-```
-
-### 2. Create a virtual environment
-
-macOS/Linux:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
-
-Windows PowerShell:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-### 3. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## Usage
-
-### Run the full ML pipeline
-
-```bash
-python run_pipeline.py
-```
-
-This creates the CSV outputs.
-
-### Load outputs into SQLite
-
-```bash
-python load_to_db.py
-```
-
-This creates or updates:
-
-```text
-anomaly_detection.db
-```
-
-### Start the API
-
-```bash
-python -m uvicorn api:app --reload
-```
-
-Then open:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-### Run tests
-
-```bash
-python -m pytest
+.github/workflows/ci.yml
 ```
 
 ---
 
 ## Generated Files
 
-These files are generated locally and ignored by Git:
+The following files are generated locally and should not be committed:
 
 ```text
 *.csv
-anomaly_detection.db
 *.db
 *.sqlite
 *.sqlite3
 metrics.txt
+outputs/threshold_results.csv
 .pytest_cache/
 __pycache__/
 ```
@@ -1093,93 +544,59 @@ alert_events.csv
 anomaly_detection.db
 ```
 
-The threshold sweep output is stored under:
-
-```text
-outputs/threshold_results.csv
-```
-
-Generated files should not be committed.
-
 ---
 
-## Current Project Status
+## Current Status
 
 Completed:
 
 ```text
-Synthetic multi-machine data generator
-Temporal feature engineering
+synthetic data generator
+feature engineering
 Random Forest anomaly model
-Threshold sweep
-Evaluation script
-Row-level alert generation
-Grouped alert event generation
-SQLite schema and persistence layer
-SQLite query helpers
-SQLite indexes for common API query paths
-FastAPI read API
-Pydantic response models
-API missing-run validation
-API missing-event validation
-Event filtering
-Prediction filtering
-Pagination with limit and offset
-Pagination validation
-Run summary endpoint
-Chart-ready distribution endpoints
-Dashboard-ready aggregate endpoint
-Pytest coverage
+threshold sweep
+evaluation script
+row-level alerting
+alert event grouping
+SQLite persistence
+SQLite indexes
+FastAPI backend
+API filtering and pagination
+API validation
+dashboard-ready API endpoint
+Streamlit dashboard
+pytest test suite
 GitHub Actions CI
-MIT license
 ```
 
-Next planned improvements:
+Planned final polish:
 
 ```text
-Build a simple Streamlit dashboard that calls the FastAPI backend
-Add dashboard screenshots to README
-Add model ablation script
-Add threshold comparison report
-Add config and CLI cleanup
-Add Docker support
-Add deployment configuration
+model ablation script
+dashboard screenshots
+final README screenshots/demo section
+optional Docker support
 ```
 
 ---
 
-## Technical Stack
+## Project Summary
+
+This project demonstrates the full path from ML model output to operational application behavior.
+
+It includes the backend systems work around the model:
 
 ```text
-Python
-pandas
-NumPy
-scikit-learn
-SQLite
-FastAPI
-Pydantic
-Uvicorn
-pytest
-GitHub Actions
-```
-
----
-
-## Notes
-
-This project is intentionally structured as an ML systems project rather than a standalone notebook. The pipeline is designed to show the full path from data generation to operational API access.
-
-The main engineering focus is:
-
-```text
-reproducible synthetic data
-time-aware feature engineering
-model thresholding
-alert/event logic
-persistent storage
-REST API design
-database indexing
-dashboard-ready API design
-test coverage
+data generation
+features
+modeling
+alerts
+events
+storage
+API access
+dashboard visualization
+tests
 CI
 ```
+
+The result is a portfolio-ready ML systems project that shows more than model training alone.
