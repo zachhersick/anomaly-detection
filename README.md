@@ -28,6 +28,42 @@ Streamlit dashboard
 
 ---
 
+## Running the Project
+
+### 1. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Run the ML pipeline
+
+```bash
+python run_pipeline.py
+```
+
+This creates the generated CSV outputs.
+
+### 3. Load outputs into SQLite
+
+```bash
+python load_to_db.py
+```
+
+### 4. Start the API
+
+```bash
+python -m uvicorn api:app --reload
+```
+
+### 5. Start the dashboard
+
+```bash
+streamlit run dashboard.py
+```
+
+---
+
 ## Project Goals
 
 This project is designed to demonstrate a realistic ML systems workflow, not just a notebook model.
@@ -415,42 +451,6 @@ The dashboard does not read CSV files or SQLite directly. It uses FastAPI as the
 
 ```text
 Streamlit -> FastAPI -> SQLite
-```
-
----
-
-## Running the Project
-
-### 1. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Run the ML pipeline
-
-```bash
-python run_pipeline.py
-```
-
-This creates the generated CSV outputs.
-
-### 3. Load outputs into SQLite
-
-```bash
-python load_to_db.py
-```
-
-### 4. Start the API
-
-```bash
-python -m uvicorn api:app --reload
-```
-
-### 5. Start the dashboard
-
-```bash
-streamlit run dashboard.py
 ```
 
 ---
