@@ -2,8 +2,8 @@ import pandas as pd
 
 #model prediction + anomaly score + sensor value + safety value + safety rule = alert record
 
-INPUT_FILE = 'predictions.csv'
-OUTPUT_FILE = 'alerts.csv'
+INPUT_FILE = 'outputs/predictions.csv'
+OUTPUT_FILE = 'outputs/alerts.csv'
 
 SENSORS = [
     'temperature',

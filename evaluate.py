@@ -4,9 +4,9 @@ import pandas as pd
 from sklearn import metrics
 
 
-PREDICTIONS_INPUT_PATH = "predictions.csv"
-RETENTION_INPUT_PATH = "feature_row_retention.csv"
-FEATURE_IMPORTANCE_INPUT_PATH = "feature_importance.csv"
+PREDICTIONS_INPUT_PATH = "outputs/predictions.csv"
+RETENTION_INPUT_PATH = "outputs/feature_row_retention.csv"
+FEATURE_IMPORTANCE_INPUT_PATH = "outputs/feature_importance.csv"
 
 DEBUG_OSCILLATION_DETAILS = False
 

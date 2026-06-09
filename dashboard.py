@@ -2,8 +2,7 @@ import pandas as pd
 import requests
 import streamlit as st
 
-
-API_BASE_URL = "http://127.0.0.1:8000"
+from config import API_BASE_URL
 
 
 def fetch_dashboard_run(run_id: int):

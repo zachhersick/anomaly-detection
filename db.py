@@ -1,8 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-
-DB_PATH = Path("anomaly_detection.db")
+from config import DB_PATH
 
 
 def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:

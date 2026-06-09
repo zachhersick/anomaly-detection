@@ -1,7 +1,7 @@
 import pandas as pd
 
-INPUT_FILE = 'alerts.csv'
-OUTPUT_FILE = 'alert_events.csv'
+INPUT_FILE = 'outputs/alerts.csv'
+OUTPUT_FILE = 'outputs/alert_events.csv'
 
 MAX_STEP_GAP = 3
 SEVERITY_PRIORITY = {

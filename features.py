@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
 
-INPUT_PATH = 'sensor_data_raw.csv'
-FEATURES_OUTPUT_PATH = 'sensor_data_features.csv'
-RETENTION_OUTPUT_PATH = 'feature_row_retention.csv'
+INPUT_PATH = 'outputs/sensor_data_raw.csv'
+FEATURES_OUTPUT_PATH = 'outputs/sensor_data_features.csv'
+RETENTION_OUTPUT_PATH = 'outputs/feature_row_retention.csv'
 window = 10
 long_window = 50
 eps = 1e-6

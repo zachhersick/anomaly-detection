@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
+from config import MODEL_THRESHOLD
 from model import (
-    DEFAULT_THRESHOLD,
     THRESHOLDS,
     find_cols_with_suffixes,
     load_feature_data,
@@ -15,6 +15,7 @@ from model import (
     save_feature_importance,
     run_model_pipeline,
 )
+
 
 
 def make_test_feature_df(num_rows=40):
@@ -168,7 +169,7 @@ def test_train_model_and_threshold_sweep_returns_expected_outputs():
     )
 
     assert len(threshold_df) == len(THRESHOLDS)
-    assert DEFAULT_THRESHOLD in threshold_df["threshold"].values
+    assert MODEL_THRESHOLD in threshold_df["threshold"].values
 
     assert len(predictions_df) == len(test_idx)
     assert "real_value" in predictions_df.columns
@@ -176,7 +177,7 @@ def test_train_model_and_threshold_sweep_returns_expected_outputs():
     assert "anomaly_score" in predictions_df.columns
     assert "threshold" in predictions_df.columns
 
-    assert set(predictions_df["threshold"].unique()) == {DEFAULT_THRESHOLD}
+    assert set(predictions_df["threshold"].unique()) == {MODEL_THRESHOLD}
 
 
 def test_save_predictions_and_threshold_results_write_files(tmp_path):
@@ -188,7 +189,7 @@ def test_save_predictions_and_threshold_results_write_files(tmp_path):
                 "real_value": 1,
                 "prediction": 1,
                 "anomaly_score": 0.95,
-                "threshold": DEFAULT_THRESHOLD,
+                "threshold": MODEL_THRESHOLD,
             }
         ]
     )
@@ -196,7 +197,7 @@ def test_save_predictions_and_threshold_results_write_files(tmp_path):
     threshold_df = pd.DataFrame(
         [
             {
-                "threshold": DEFAULT_THRESHOLD,
+                "threshold": MODEL_THRESHOLD,
                 "accuracy": 1.0,
                 "precision": 1.0,
                 "f1": 1.0,

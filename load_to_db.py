@@ -3,13 +3,14 @@ import sqlite3
 
 import pandas as pd
 
-from db import DB_PATH, create_tables, get_connection
+from db import create_tables, get_connection
+from config import DB_PATH
 
 
-SENSOR_DATA_RAW_PATH = Path("sensor_data_raw.csv")
-PREDICTIONS_PATH = Path("predictions.csv")
-ALERTS_PATH = Path("alerts.csv")
-ALERT_EVENTS_PATH = Path("alert_events.csv")
+SENSOR_DATA_RAW_PATH = Path("outputs/sensor_data_raw.csv")
+PREDICTIONS_PATH = Path("outputs/predictions.csv")
+ALERTS_PATH = Path("outputs/alerts.csv")
+ALERT_EVENTS_PATH = Path("outputs/alert_events.csv")
 
 
 def get_table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:

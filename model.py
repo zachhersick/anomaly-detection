@@ -7,19 +7,17 @@ from sklearn import metrics
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
+from config import OUTPUT_DIR, RANDOM_STATE, TEST_SIZE, MODEL_THRESHOLD
 
-INPUT_CSV = "sensor_data_features.csv"
 
-PREDICTIONS_OUTPUT_PATH = "predictions.csv"
+INPUT_CSV = OUTPUT_DIR / "sensor_data_features.csv"
 
-REPORTS_DIR = Path("outputs")
-FEATURE_IMPORTANCE_OUTPUT_PATH = REPORTS_DIR / "feature_importance.csv"
-THRESHOLD_RESULTS_OUTPUT_PATH = REPORTS_DIR / "threshold_results.csv"
+PREDICTIONS_OUTPUT_PATH = OUTPUT_DIR / "predictions.csv"
+
+FEATURE_IMPORTANCE_OUTPUT_PATH = OUTPUT_DIR / "feature_importance.csv"
+THRESHOLD_RESULTS_OUTPUT_PATH = OUTPUT_DIR / "threshold_results.csv"
 
 LABEL_COL = "any_anomaly"
-
-RANDOM_STATE = 42
-TEST_SIZE = 0.2
 
 THRESHOLDS = [
     0.30,
@@ -32,8 +30,6 @@ THRESHOLDS = [
     0.65,
     0.70,
 ]
-
-DEFAULT_THRESHOLD = 0.35
 
 ABLATION_GROUPS = {
     "lag_autocorr": [
@@ -291,7 +287,7 @@ def run_threshold_sweep(
 
         threshold_results.append(result)
 
-        if threshold == DEFAULT_THRESHOLD:
+        if threshold == MODEL_THRESHOLD:
             predictions_df = df.loc[test_idx].copy()
             predictions_df["real_value"] = y_test
             predictions_df["prediction"] = pred_series
@@ -304,7 +300,7 @@ def run_threshold_sweep(
 
     if default_predictions_df is None:
         raise ValueError(
-            f"DEFAULT_THRESHOLD {DEFAULT_THRESHOLD} was not found in THRESHOLDS."
+            f"DEFAULT_THRESHOLD {MODEL_THRESHOLD} was not found in THRESHOLDS."
         )
 
     return threshold_df, default_predictions_df

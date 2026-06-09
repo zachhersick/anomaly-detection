@@ -4,7 +4,7 @@ import pandas as pd
 DEFAULT_NUM_MACHINES = 10
 DEFAULT_NUM_TIMESTEPS = 5000
 DEFAULT_FIXED_SEED = 295
-OUTPUT_PATH = "sensor_data_raw.csv"
+OUTPUT_PATH = "outputs/sensor_data_raw.csv"
 
 anomalies = ['spike', 'drop', 'drift', 'oscillation', 'stuck_sensor', 'impossible_value']
 sensors = ['temperature', 'pressure', 'vibration', 'flow_rate', 'voltage', 'current']

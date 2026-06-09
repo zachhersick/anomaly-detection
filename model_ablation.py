@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 # Config
 # ---------------------------------------------------------------------
 
-INPUT_CSV = 'sensor_data_features.csv'
+INPUT_CSV = 'outputs/sensor_data_features.csv'
 
 LABEL_COL = 'any_anomaly'
 
