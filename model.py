@@ -2,12 +2,15 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import joblib
+import json
 
+from datetime import datetime
 from sklearn import metrics
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
-from config import OUTPUT_DIR, RANDOM_STATE, TEST_SIZE, MODEL_THRESHOLD
+from config import OUTPUT_DIR, RANDOM_STATE, TEST_SIZE, MODEL_THRESHOLD, ARTIFACT_DIR
 
 
 INPUT_CSV = OUTPUT_DIR / "sensor_data_features.csv"
@@ -408,6 +411,28 @@ def run_model_pipeline(
         meta_test=meta_test,
         test_idx=test_idx,
     )
+    
+    ARTIFACT_DIR.mkdir(exist_ok=True)
+    
+    joblib.dump(model, ARTIFACT_DIR / "model.joblib")
+    
+    feature_columns = list(X_train.columns)
+    
+    with open(ARTIFACT_DIR / "feature_columns.json", "w") as file:
+        json.dump(feature_columns, file, indent=4)
+                
+    metadata = {
+        "model_type": "RandomForestClassifier",
+        "threshold": MODEL_THRESHOLD,
+        "random_state": RANDOM_STATE,
+        "test_size": TEST_SIZE,
+        "feature_count": len(feature_columns),
+        "training_rows": len(X_train),
+        "created_at": datetime.now().isoformat()
+    }
+    
+    with open(ARTIFACT_DIR / "model_metadata.json", "w") as file:
+        json.dump(metadata, file, indent=4)
 
     save_predictions(
         predictions_df=predictions_df,

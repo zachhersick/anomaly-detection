@@ -11,4 +11,5 @@ anomaly_detection.db
 *.sqlite3
 __pycache__
 .pytest_cache
-outputs
+outputs/
+artifacts/
