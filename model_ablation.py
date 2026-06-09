@@ -5,22 +5,13 @@ from sklearn import metrics
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
+from config import OUTPUT_DIR, RANDOM_STATE, TEST_SIZE, MODEL_THRESHOLD
 
-# ---------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------
 
-INPUT_CSV = 'outputs/sensor_data_features.csv'
+INPUT_CSV = OUTPUT_DIR / 'sensor_data_features.csv'
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 LABEL_COL = 'any_anomaly'
-
-RANDOM_STATE = 42
-TEST_SIZE = 0.2
-
-
-# ---------------------------------------------------------------------
-# Ablation groups
-# ---------------------------------------------------------------------
 
 ABLATION_GROUPS = {
     'lag_autocorr': [
@@ -52,12 +43,12 @@ PERMANENT_DROP_SUFFIXES = [
 
 ABLATION_RUNS = {
     'final_model': [],
+    "without_lag_autocorr": ABLATION_GROUPS["lag_autocorr"],
+    "without_zero_cross": ABLATION_GROUPS["zero_cross"],
+    "without_center_balance": ABLATION_GROUPS["center_balance"],
+    "without_trend_ratio": ABLATION_GROUPS["trend_ratio"],
 }
 
-
-# ---------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------
 
 def find_cols_with_suffixes(columns, suffixes):
     cols_to_drop = []
@@ -200,11 +191,6 @@ permanent_drop_cols = find_cols_with_suffixes(
 
 drop_cols = non_feature_cols + permanent_drop_cols
 
-drops_cols = [
-    col for col in drop_cols
-    if col in df.columns
-]
-
 X_full = df.drop(columns=drop_cols)
 
 # Keep only numeric features.
@@ -250,18 +236,18 @@ for run_name, suffixes_to_drop in ABLATION_RUNS.items():
     model = make_model()
     model.fit(X_train, y_train)
 
-    predictions = model.predict(X_test)
+    if hasattr(model, 'predict_proba'):
+        anomaly_scores = model.predict_proba(X_test)[:, 1]
+    else:
+        anomaly_scores = model.predict(X_test)
+
+    predictions = (anomaly_scores >= MODEL_THRESHOLD).astype(int)
 
     pred_series = pd.Series(
         predictions,
         index=test_idx,
         name='prediction'
     )
-
-    if hasattr(model, 'predict_proba'):
-        anomaly_scores = model.predict_proba(X_test)[:, 1]
-    else:
-        anomaly_scores = predictions
 
     score_series = pd.Series(
         anomaly_scores,
@@ -290,14 +276,14 @@ for run_name, suffixes_to_drop in ABLATION_RUNS.items():
     predictions_df['ablation_run'] = run_name
 
     predictions_df.to_csv(
-        f'predictions_{run_name}.csv',
+        OUTPUT_DIR / f'predictions_{run_name}.csv',
         index=False
     )
 
-    # Keep evaluate.py working on the baseline run.
-    if run_name == 'baseline':
+    # Keep evaluate.py working on the final model run.
+    if run_name == 'final_model':
         predictions_df.to_csv(
-            'predictions.csv',
+            OUTPUT_DIR / 'predictions.csv',
             index=False
         )
 
@@ -314,14 +300,14 @@ for run_name, suffixes_to_drop in ABLATION_RUNS.items():
         )
 
         feature_importance.to_csv(
-            f'feature_importance_{run_name}.csv',
+            OUTPUT_DIR / f'feature_importance_{run_name}.csv',
             index=False
         )
 
         # Keep your normal baseline feature importance file.
-        if run_name == 'baseline':
+        if run_name == 'final_model':
             feature_importance.to_csv(
-                'feature_importance.csv',
+                OUTPUT_DIR / 'feature_importance.csv',
                 index=False
             )
 
@@ -331,7 +317,7 @@ for run_name, suffixes_to_drop in ABLATION_RUNS.items():
 # ---------------------------------------------------------------------
 
 ablation_df = pd.DataFrame(ablation_results)
-ablation_df.to_csv('ablation_results.csv', index=False)
+ablation_df.to_csv(OUTPUT_DIR / 'ablation_results.csv', index=False)
 
 print('\nABLATION RESULTS')
 print(
