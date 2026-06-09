@@ -2,33 +2,17 @@
 
 ![CI](https://github.com/zachhersick/anomaly-detection/actions/workflows/ci.yml/badge.svg)
 
-An end-to-end ML systems project for detecting and visualizing simulated industrial machine anomalies.
+End-to-end ML systems project for simulated industrial anomaly detection.
 
-The project generates synthetic sensor data, engineers time-series features, trains a machine learning model, creates alerts, groups alerts into operational events, stores results in SQLite, exposes results through a FastAPI backend, and displays them in a Streamlit dashboard.
+The system generates synthetic machine sensor data, engineers time-series features, trains an anomaly model, creates alerts, groups alerts into events, stores results in SQLite, exposes results through FastAPI, serves saved model artifacts through `/predict`, and displays run results in Streamlit.
 
 ```text
-Synthetic data
-    ↓
-Feature engineering
-    ↓
-Model training
-    ↓
-Prediction + thresholding
-    ↓
-Row-level alerts
-    ↓
-Grouped alert events
-    ↓
-SQLite storage
-    ↓
-FastAPI backend
-    ↓
-Streamlit dashboard
+Data generation -> Features -> Model -> Alerts -> Events -> SQLite -> FastAPI -> Streamlit
 ```
 
 ---
 
-## Running the Project
+## Run the Project
 
 ### 1. Install dependencies
 
@@ -42,8 +26,6 @@ pip install -r requirements.txt
 python run_pipeline.py
 ```
 
-This creates the generated CSV outputs.
-
 ### 3. Load outputs into SQLite
 
 ```bash
@@ -56,30 +38,41 @@ python load_to_db.py
 python -m uvicorn api:app --reload
 ```
 
+API docs:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
 ### 5. Start the dashboard
+
+In a second terminal:
 
 ```bash
 streamlit run dashboard.py
 ```
 
+### 6. Run tests
+
+```bash
+python -m pytest
+```
+
 ---
 
-## Project Goals
-
-This project is designed to demonstrate a realistic ML systems workflow, not just a notebook model.
-
-It focuses on:
+## What This Project Demonstrates
 
 ```text
 synthetic data generation
 time-series feature engineering
-model training and evaluation
-alerting logic
-event grouping
-database persistence
-REST API design
-dashboard-ready endpoints
-basic frontend visualization
+model training and thresholding
+model artifact saving
+basic model serving
+alert generation
+alert event grouping
+SQLite persistence
+FastAPI API design
+Streamlit dashboard
 testing and CI
 ```
 
@@ -92,6 +85,7 @@ Python
 pandas
 NumPy
 scikit-learn
+joblib
 SQLite
 FastAPI
 Pydantic
@@ -106,32 +100,35 @@ GitHub Actions
 ## Repository Structure
 
 ```text
-generator.py              Generate synthetic industrial sensor data
-features.py               Create temporal/statistical features
-model.py                  Train model and write predictions
-evaluate.py               Print evaluation report
+generator.py              Generate synthetic machine sensor data
+features.py               Build temporal/statistical features
+model.py                  Train model, write predictions, save artifacts
+model_ablation.py         Compare feature-group ablation runs
+evaluate.py               Print model evaluation report
 alerts.py                 Create row-level alerts
-alert_events.py           Group row-level alerts into alert events
-run_pipeline.py           Run the full ML pipeline
+alert_events.py           Group row alerts into events
+run_pipeline.py           Run the full pipeline
 
+config.py                 Shared project configuration
 db.py                     SQLite schema, connection, and indexes
 load_to_db.py             Load generated outputs into SQLite
-db_queries.py             Read/query helpers for the API
+db_queries.py             SQLite query helpers
 
 api.py                    FastAPI backend
-schemas.py                Pydantic response models
-dashboard.py              Streamlit dashboard client
+schemas.py                Pydantic request/response models
+model_serving.py          Load model artifacts and run inference
+dashboard.py              Streamlit dashboard
 
 tests/                    Pytest suite
 .github/workflows/ci.yml  GitHub Actions CI
-requirements.txt          Python dependencies
+requirements.txt          Dependencies
 ```
 
 ---
 
-## Synthetic Data
+## Data and Features
 
-The generator simulates multiple industrial machines with the following sensors:
+The synthetic dataset simulates multiple industrial machines with these sensors:
 
 ```text
 temperature
@@ -153,58 +150,38 @@ stuck_sensor
 impossible_value
 ```
 
-The generated dataset includes normal behavior, noisy sensor readings, and labeled anomaly periods.
-
-Output:
+Feature engineering creates time-series features such as:
 
 ```text
-sensor_data_raw.csv
-```
-
----
-
-## Feature Engineering
-
-`features.py` creates time-series features per machine and sensor.
-
-Feature examples:
-
-```text
-rolling mean
-rolling standard deviation
+rolling mean/std
 rolling min/max/range
-delta features
-absolute delta features
+delta and absolute delta
 z-scores
-short-vs-long rolling mean differences
 rolling slope
-same-direction run length
-centered zero-crossing count
 lag autocorrelation
+zero-crossing counts
+short-vs-long rolling differences
 ```
 
-Outputs:
+Main generated feature output:
 
 ```text
-sensor_data_features.csv
-feature_row_retention.csv
+outputs/sensor_data_features.csv
 ```
 
 ---
 
 ## Model Training
 
-`model.py` trains a Random Forest classifier to predict whether a row is anomalous.
-
-The model writes:
+`model.py` trains a Random Forest classifier and writes:
 
 ```text
-predictions.csv
-feature_importance.csv
+outputs/predictions.csv
+outputs/feature_importance.csv
 outputs/threshold_results.csv
 ```
 
-The project currently uses a selected anomaly threshold of:
+The default anomaly threshold is configured in `config.py`:
 
 ```text
 0.35
@@ -212,11 +189,63 @@ The project currently uses a selected anomaly threshold of:
 
 ---
 
-## Alerting
+## Model Artifacts
 
-`alerts.py` converts model predictions into row-level alerts.
+`model.py` saves deployable model artifacts:
 
-Each alert includes:
+```text
+artifacts/model.joblib
+artifacts/feature_columns.json
+artifacts/model_metadata.json
+```
+
+These are generated locally and ignored by Git.
+
+```text
+model.joblib              trained Random Forest model
+feature_columns.json      exact training feature order
+model_metadata.json       threshold, model type, feature count, training rows, timestamp
+```
+
+Regenerate artifacts:
+
+```bash
+python model.py
+```
+
+---
+
+## Model Ablation
+
+`model_ablation.py` compares the final model against versions with selected feature groups removed.
+
+Example runs:
+
+```text
+final_model
+without_lag_autocorr
+without_zero_cross
+without_center_balance
+without_trend_ratio
+```
+
+Run:
+
+```bash
+python model_ablation.py
+```
+
+Main output:
+
+```text
+outputs/ablation_results.csv
+```
+
+---
+
+## Alerting and Events
+
+`alerts.py` converts predictions into row-level alerts with:
 
 ```text
 machine_id
@@ -240,21 +269,7 @@ WARNING
 CRITICAL
 ```
 
-Output:
-
-```text
-alerts.csv
-```
-
----
-
-## Alert Event Grouping
-
-`alert_events.py` groups consecutive row-level alerts into higher-level operational events.
-
-This prevents one real anomaly from appearing as many unrelated alerts.
-
-Grouping is based on:
+`alert_events.py` groups consecutive row alerts into higher-level events based on:
 
 ```text
 machine_id
@@ -263,39 +278,18 @@ anomaly_type
 step gap
 ```
 
-Output:
+Main outputs:
 
 ```text
-alert_events.csv
-```
-
-Each event tracks:
-
-```text
-start_step
-end_step
-duration
-alert_count
-max_severity
-max_anomaly_score
-mean_anomaly_score
-sensor value range
-status
+outputs/alerts.csv
+outputs/alert_events.csv
 ```
 
 ---
 
 ## SQLite Storage
 
-The project stores pipeline outputs in SQLite.
-
-Database file:
-
-```text
-anomaly_detection.db
-```
-
-Tables:
+SQLite tables:
 
 ```text
 pipeline_runs
@@ -305,58 +299,48 @@ row_alerts
 alert_events
 ```
 
-Load generated pipeline outputs into SQLite:
+Database file:
+
+```text
+anomaly_detection.db
+```
+
+Load generated outputs:
 
 ```bash
 python load_to_db.py
 ```
 
-Each load creates a new `run_id`, allowing multiple pipeline runs to be stored and compared.
-
-The database also includes indexes for common API query paths, including event filtering, prediction filtering, and sensor reading pagination.
+Each load creates a new `run_id`, allowing multiple runs to be stored and compared.
 
 ---
 
 ## FastAPI Backend
 
-Start the API server:
+Start API:
 
 ```bash
 python -m uvicorn api:app --reload
 ```
 
-Open API docs:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
 Main endpoints:
 
 ```text
-GET /health
-GET /runs
-GET /runs/latest
-
-GET /runs/{run_id}/summary
-
-GET /runs/{run_id}/events
-GET /runs/{run_id}/events/critical
-GET /runs/{run_id}/events/{event_id}/alerts
-
-GET /runs/{run_id}/events/anomaly-type-distribution
-GET /runs/{run_id}/events/sensor-distribution
-GET /runs/{run_id}/events/severity-distribution
-
-GET /runs/{run_id}/predictions
-GET /runs/{run_id}/machines/{machine_id}/readings
-
-GET /dashboard/runs/{run_id}
+GET  /health
+GET  /runs
+GET  /runs/latest
+GET  /runs/{run_id}/summary
+GET  /runs/{run_id}/events
+GET  /runs/{run_id}/events/critical
+GET  /runs/{run_id}/events/{event_id}/alerts
+GET  /runs/{run_id}/events/anomaly-type-distribution
+GET  /runs/{run_id}/events/sensor-distribution
+GET  /runs/{run_id}/events/severity-distribution
+GET  /runs/{run_id}/predictions
+GET  /runs/{run_id}/machines/{machine_id}/readings
+GET  /dashboard/runs/{run_id}
+POST /predict
 ```
-
----
-
-## API Features
 
 The API supports:
 
@@ -365,72 +349,46 @@ run validation
 event validation
 filtering
 pagination
-response models
+Pydantic response models
 dashboard-ready aggregate responses
+basic model inference
 ```
-
-Filtering examples:
-
-```text
-GET /runs/1/events?severity=CRITICAL
-GET /runs/1/events?sensor=temperature
-GET /runs/1/events?anomaly_type=spike
-GET /runs/1/predictions?machine_id=1
-GET /runs/1/predictions?target_sensor=temperature
-```
-
-Pagination examples:
-
-```text
-GET /runs/1/events?limit=100&offset=0
-GET /runs/1/predictions?limit=100&offset=100
-GET /runs/1/machines/1/readings?limit=100&offset=200
-```
-
-Pagination rules:
-
-```text
-limit: 1 to 500
-offset: 0 or greater
-```
-
-Invalid values return FastAPI validation errors.
 
 ---
 
-## Dashboard Endpoint
+## Model Inference
 
-The main dashboard endpoint is:
+`POST /predict` serves the saved model artifact.
 
-```text
-GET /dashboard/runs/{run_id}
+Request:
+
+```json
+{
+  "features": {
+    "feature_a": 1.0,
+    "feature_b": 0.5
+  }
+}
 ```
 
-It returns:
+Response:
 
-```text
-summary metrics
-anomaly type distribution
-sensor distribution
-severity distribution
-top critical events
+```json
+{
+  "prediction": 0,
+  "anomaly_score": 0.0033333333333333335,
+  "threshold": 0.35,
+  "is_anomaly": false
+}
 ```
 
-This lets the dashboard load the main run overview with one API request.
+The endpoint expects engineered features, not raw sensor readings. Missing expected features are filled with `0`, then inputs are aligned to the saved feature order.
 
 ---
 
 ## Streamlit Dashboard
 
-The project includes a Streamlit dashboard that calls the FastAPI backend.
-
-Start the API first:
-
-```bash
-python -m uvicorn api:app --reload
-```
-
-Then start the dashboard in a second terminal:
+Run after starting the API:
 
 ```bash
 streamlit run dashboard.py
@@ -440,18 +398,20 @@ The dashboard displays:
 
 ```text
 run summary metrics
-anomaly type distribution chart
-sensor distribution chart
-severity distribution chart
-top critical events table
-raw API response for debugging
+anomaly type distribution
+sensor distribution
+severity distribution
+top critical events
+raw API response
 ```
 
-The dashboard does not read CSV files or SQLite directly. It uses FastAPI as the data access layer.
+Architecture:
 
 ```text
 Streamlit -> FastAPI -> SQLite
 ```
+
+The dashboard does not read CSV files or SQLite directly.
 
 ---
 
@@ -463,15 +423,10 @@ Run all tests:
 python -m pytest
 ```
 
-Run API tests only:
+Run selected tests:
 
 ```bash
 python -m pytest tests/test_api.py
-```
-
-Run database tests only:
-
-```bash
 python -m pytest tests/test_db.py
 ```
 
@@ -482,66 +437,53 @@ data generation
 feature engineering
 model helpers
 alert creation
-alert event grouping
-database schema
-database loading
-database indexes
+event grouping
+database schema/loading/indexes
 query helpers
-FastAPI routes
+API routes
 filtering
 pagination
 validation
-summary endpoint
-distribution endpoints
-dashboard endpoint
+summary/distribution/dashboard endpoints
+model inference endpoint
 pipeline orchestration
-```
-
----
-
-## Continuous Integration
-
-GitHub Actions runs the test suite on:
-
-```text
-push
-pull_request
-```
-
-Workflow file:
-
-```text
-.github/workflows/ci.yml
 ```
 
 ---
 
 ## Generated Files
 
-The following files are generated locally and should not be committed:
+Generated files should not be committed.
+
+Ignored/generated files include:
 
 ```text
+outputs/
+artifacts/
 *.csv
 *.db
 *.sqlite
 *.sqlite3
 metrics.txt
-outputs/threshold_results.csv
 .pytest_cache/
 __pycache__/
 ```
 
-Common generated outputs:
+Common outputs:
 
 ```text
-sensor_data_raw.csv
-sensor_data_features.csv
-feature_row_retention.csv
-predictions.csv
-feature_importance.csv
-alerts.csv
-alert_events.csv
+outputs/sensor_data_raw.csv
+outputs/sensor_data_features.csv
+outputs/predictions.csv
+outputs/feature_importance.csv
+outputs/threshold_results.csv
+outputs/alerts.csv
+outputs/alert_events.csv
+outputs/ablation_results.csv
 anomaly_detection.db
+artifacts/model.joblib
+artifacts/feature_columns.json
+artifacts/model_metadata.json
 ```
 
 ---
@@ -553,50 +495,25 @@ Completed:
 ```text
 synthetic data generator
 feature engineering
-Random Forest anomaly model
+Random Forest model
 threshold sweep
-evaluation script
-row-level alerting
+model ablation
+alert generation
 alert event grouping
 SQLite persistence
-SQLite indexes
 FastAPI backend
-API filtering and pagination
-API validation
-dashboard-ready API endpoint
 Streamlit dashboard
-pytest test suite
+model artifact saving
+POST /predict endpoint
+pytest suite
 GitHub Actions CI
 ```
 
-Planned final polish:
+Remaining:
 
 ```text
-model ablation script
-dashboard screenshots
-final README screenshots/demo section
-optional Docker support
+Dockerize API and dashboard
+add Docker deployment docs
+add screenshots
+final polish
 ```
-
----
-
-## Project Summary
-
-This project demonstrates the full path from ML model output to operational application behavior.
-
-It includes the backend systems work around the model:
-
-```text
-data generation
-features
-modeling
-alerts
-events
-storage
-API access
-dashboard visualization
-tests
-CI
-```
-
-The result is a portfolio-ready ML systems project that shows more than model training alone.
