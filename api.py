@@ -22,6 +22,9 @@ from db_queries import (
     get_top_critical_events_for_run,
 )
 
+
+from model_serving import predict_feature_row
+
 from schemas import (
     HealthResponse,
     PipelineRunResponse,
@@ -35,6 +38,8 @@ from schemas import (
     SensorDistributionResponse,
     SeverityDistributionResponse,
     DashboardRunResponse,
+    PredictionRequest,
+    PredictionResultResponse,
 )
 
 
@@ -259,6 +264,16 @@ def read_dashboard_run(run_id: int, conn=Depends(get_db_connection)):
             get_top_critical_events_for_run(conn, run_id, limit=5)
         ),
     }
+    
+
+@app.post("/predict", response_model=PredictionResultResponse)
+def post_model_serve(request: PredictionRequest):
+    try:
+        response = predict_feature_row(request.features)
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error))
+    
+    return response
 
 def ensure_run_exists(conn, run_id: int):
     response = run_exists(conn, run_id)

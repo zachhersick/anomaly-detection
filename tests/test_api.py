@@ -1689,3 +1689,34 @@ def test_read_dashboard_run_returns_404_when_run_missing(client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Pipeline run not found"
+    
+    
+def test_post_predict_returns_model_prediction(client, monkeypatch):
+    def fake_predict_feature_row(features):
+        assert features == {"feature_a": 1.0}
+
+        return {
+            "prediction": 1,
+            "anomaly_score": 0.82,
+            "threshold": 0.35,
+            "is_anomaly": True,
+        }
+
+    monkeypatch.setattr("api.predict_feature_row", fake_predict_feature_row)
+
+    response = client.post(
+        "/predict",
+        json={
+            "features": {
+                "feature_a": 1.0,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "prediction": 1,
+        "anomaly_score": 0.82,
+        "threshold": 0.35,
+        "is_anomaly": True,
+    }

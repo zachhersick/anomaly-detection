@@ -140,3 +140,13 @@ class DashboardRunResponse(BaseModel):
     sensor_distribution: list[SensorDistributionResponse]
     severity_distribution: list[SeverityDistributionResponse]
     top_critical_events: list[AlertEventResponse]
+    
+    
+class PredictionRequest(BaseModel):
+    features: dict[str, float]
+
+class PredictionResultResponse(BaseModel):
+    prediction: int
+    anomaly_score: float
+    threshold: float
+    is_anomaly: bool
