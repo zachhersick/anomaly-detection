@@ -583,10 +583,3 @@ Dockerized local deployment
 pytest suite
 GitHub Actions CI
 ```
-
-Remaining:
-
-```text
-final screenshot polish
-final README polish
-```

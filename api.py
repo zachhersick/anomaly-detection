@@ -233,7 +233,7 @@ def read_anomaly_type_distribution_for_run(run_id: int, conn=Depends(get_db_conn
     return distribution
 
 
-@app.get("/runs/{run_id}/events/sensor-distribution")
+@app.get("/runs/{run_id}/events/sensor-distribution", response_model=list[SensorDistributionResponse])
 def read_sensor_distribution_for_run(run_id: int, conn=Depends(get_db_connection)):
     ensure_run_exists(conn, run_id)
     
@@ -242,7 +242,7 @@ def read_sensor_distribution_for_run(run_id: int, conn=Depends(get_db_connection
     return distribution
 
 
-@app.get("/runs/{run_id}/events/severity-distribution")
+@app.get("/runs/{run_id}/events/severity-distribution", response_model=list[SeverityDistributionResponse])
 def read_severity_distribution_for_run(run_id: int, conn=Depends(get_db_connection)):
     ensure_run_exists(conn, run_id)
     
