@@ -1,0 +1,28 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_PATH=/app/anomaly_detection.db
+      - API_BASE_URL=http://api:8000
+      - MODEL_THRESHOLD=0.35
+      - OUTPUT_DIR=/app/outputs
+      - ARTIFACT_DIR=/app/artifacts
+    volumes:
+      - .:/app
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://api:8000
+    depends_on:
+      - api
+    volumes:
+      - .:/app

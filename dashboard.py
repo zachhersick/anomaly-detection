@@ -129,7 +129,7 @@ def show_top_critical_events(events: list[dict]):
 
     st.dataframe(
         top_events_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
