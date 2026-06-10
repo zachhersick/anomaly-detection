@@ -60,6 +60,63 @@ python -m pytest
 
 ---
 
+## Run with Docker
+
+The API and dashboard can also be run together with Docker Compose.
+
+Before starting Docker, make sure the pipeline has been run and the generated outputs have been loaded into SQLite:
+
+```bash
+python run_pipeline.py
+python load_to_db.py
+```
+
+If model artifacts are missing, regenerate them with:
+
+```bash
+python model.py
+```
+
+Build and start both services:
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+```text
+FastAPI API:          http://127.0.0.1:8000
+Streamlit dashboard: http://127.0.0.1:8501
+```
+
+The dashboard container calls the API container through Docker Compose using:
+
+```text
+http://api:8000
+```
+
+Stop the containers:
+
+```bash
+docker compose down
+```
+
+Docker files:
+
+```text
+Dockerfile.api
+Dockerfile.dashboard
+docker-compose.yml
+.dockerignore
+```
+
+```text
+Streamlit container -> FastAPI container -> SQLite database
+```
+
+---
+
 ## What This Project Demonstrates
 
 ```text
