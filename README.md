@@ -12,6 +12,22 @@ Data generation -> Features -> Model -> Alerts -> Events -> SQLite -> FastAPI ->
 
 ---
 
+## Demo Screenshots
+
+### Streamlit Dashboard
+
+![Dashboard summary](docs/images/dashboard-summary.png)
+
+### Top Critical Events
+
+![Top critical events](docs/images/dashboard-events.png)
+
+### FastAPI Docs
+
+![FastAPI docs](docs/images/api-docs.png)
+
+---
+
 ## Run the Project
 
 ### 1. Install dependencies
@@ -62,9 +78,7 @@ python -m pytest
 
 ## Run with Docker
 
-The API and dashboard can also be run together with Docker Compose.
-
-Before starting Docker, make sure the pipeline has been run and the generated outputs have been loaded into SQLite:
+Before starting Docker, make sure the pipeline has been run and outputs have been loaded into SQLite:
 
 ```bash
 python run_pipeline.py
@@ -77,7 +91,7 @@ If model artifacts are missing, regenerate them with:
 python model.py
 ```
 
-Build and start both services:
+Build and start the API and dashboard:
 
 ```bash
 docker compose up --build
@@ -111,10 +125,6 @@ docker-compose.yml
 .dockerignore
 ```
 
-```text
-Streamlit container -> FastAPI container -> SQLite database
-```
-
 ---
 
 ## What This Project Demonstrates
@@ -130,6 +140,7 @@ alert event grouping
 SQLite persistence
 FastAPI API design
 Streamlit dashboard
+Dockerized local deployment
 testing and CI
 ```
 
@@ -148,6 +159,7 @@ FastAPI
 Pydantic
 Uvicorn
 Streamlit
+Docker
 pytest
 GitHub Actions
 ```
@@ -176,7 +188,12 @@ schemas.py                Pydantic request/response models
 model_serving.py          Load model artifacts and run inference
 dashboard.py              Streamlit dashboard
 
+Dockerfile.api            API container definition
+Dockerfile.dashboard      Dashboard container definition
+docker-compose.yml        Local multi-container deployment
+
 tests/                    Pytest suite
+docs/images/              Project screenshots
 .github/workflows/ci.yml  GitHub Actions CI
 requirements.txt          Dependencies
 ```
@@ -562,6 +579,7 @@ FastAPI backend
 Streamlit dashboard
 model artifact saving
 POST /predict endpoint
+Dockerized local deployment
 pytest suite
 GitHub Actions CI
 ```
@@ -569,8 +587,6 @@ GitHub Actions CI
 Remaining:
 
 ```text
-Dockerize API and dashboard
-add Docker deployment docs
-add screenshots
-final polish
+final screenshot polish
+final README polish
 ```
