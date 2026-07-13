@@ -1,270 +1,190 @@
+import inspect
+import json
+
 import numpy as np
 import pandas as pd
+import pytest
 
-from config import MODEL_THRESHOLD
 from model import (
     THRESHOLDS,
-    find_cols_with_suffixes,
-    load_feature_data,
+    build_chronological_splits,
+    evaluate_final_test_set,
     prepare_model_inputs,
-    split_train_test,
-    train_model,
-    run_threshold_sweep,
-    save_predictions,
-    save_threshold_results,
-    save_feature_importance,
     run_model_pipeline,
+    select_threshold,
 )
 
 
+class FixedModel:
+    def __init__(self, scores):
+        self.scores = np.asarray(scores)
 
-def make_test_feature_df(num_rows=40):
-    """
-    Create a small fake feature dataframe that looks like sensor_data_features.csv.
-    """
+    def predict_proba(self, X):
+        scores = self.scores[:len(X)]
+        return np.column_stack([1 - scores, scores])
+
+
+def make_feature_df(steps=300, machines=3):
     rows = []
-
-    for i in range(num_rows):
-        is_anomaly = 1 if i % 2 == 0 else 0
-
-        rows.append(
-            {
-                "step": i + 1,
-                "machine_id": 1 if i < num_rows // 2 else 2,
-                "any_anomaly": is_anomaly,
-                "anomaly_type": "spike" if is_anomaly else "none",
-                "target_sensor": "temperature" if is_anomaly else "none",
-
-                # Raw-ish sensor values
-                "temperature": 100.0 + is_anomaly * 20.0 + i * 0.01,
-                "pressure": 50.0 + i * 0.01,
-                "vibration": 2.0 + is_anomaly * 0.5,
-                "flow_rate": 1.0,
-                "voltage": 120.0,
-                "current": 10.0,
-
-                # Example engineered features
-                "temperature_delta": 0.5 + is_anomaly,
-                "temperature_abs_delta": 0.5 + is_anomaly,
-                "temperature_roll_mean": 90.0 + is_anomaly * 10.0,
-                "temperature_roll_std": 1.0 + is_anomaly,
-                "temperature_zscore": float(is_anomaly) * 3.0,
-                "temperature_slope_10": 0.1 + is_anomaly,
-
-                # Column that should be dropped by PERMANENT_DROP_SUFFIXES
-                "temperature_dir_imbalance_10": 0.99,
-
-                # Per-sensor label column that should not be used as a feature
-                "temperature_anomaly": is_anomaly,
-            }
-        )
-
+    for step in range(1, steps + 1):
+        for machine_id in range(1, machines + 1):
+            anomaly = int(step % 4 == 0)
+            rows.append(
+                {
+                    "step": step,
+                    "machine_id": machine_id,
+                    "any_anomaly": anomaly,
+                    "anomaly_type": "oscillation" if anomaly else "none",
+                    "target_sensor": "current" if anomaly else "none",
+                    "temperature": float(step + machine_id),
+                    "temperature_delta": float(anomaly),
+                    "temperature_anomaly": anomaly,
+                    "temperature_dir_imbalance_10": 0.1,
+                }
+            )
     return pd.DataFrame(rows)
 
 
-def test_find_cols_with_suffixes_returns_matching_columns():
-    columns = [
-        "temperature_delta",
-        "temperature_dir_imbalance_10",
-        "pressure_dir_imbalance_20",
-        "current_zscore",
-    ]
-
-    result = find_cols_with_suffixes(
-        columns,
-        ["_dir_imbalance_10", "_dir_imbalance_20"],
-    )
-
-    assert result == [
-        "temperature_dir_imbalance_10",
-        "pressure_dir_imbalance_20",
-    ]
+def test_split_uses_step_not_row_position():
+    df = make_feature_df().sample(frac=1, random_state=1)
+    splits = build_chronological_splits(df)
+    assert set(df.loc[splits.train_idx, "step"]) == set(splits.train_steps)
 
 
-def test_load_feature_data_drops_nan_and_infinite_rows(tmp_path):
-    df = make_test_feature_df(num_rows=6)
-
-    df.loc[0, "temperature_delta"] = np.inf
-    df.loc[1, "temperature_delta"] = np.nan
-
-    input_path = tmp_path / "features.csv"
-    df.to_csv(input_path, index=False)
-
-    loaded_df = load_feature_data(input_path)
-
-    assert len(loaded_df) == 4
-    assert np.isfinite(loaded_df["temperature_delta"]).all()
+def test_splits_are_chronologically_ordered_and_disjoint():
+    splits = build_chronological_splits(make_feature_df())
+    assert max(splits.train_steps) < min(splits.validation_steps)
+    assert max(splits.validation_steps) < min(splits.test_steps)
+    assert set(splits.train_idx).isdisjoint(splits.validation_idx)
+    assert set(splits.train_idx).isdisjoint(splits.test_idx)
+    assert set(splits.validation_idx).isdisjoint(splits.test_idx)
 
 
-def test_load_feature_data_raises_when_label_missing(tmp_path):
-    df = make_test_feature_df(num_rows=6)
-    df = df.drop(columns=["any_anomaly"])
-
-    input_path = tmp_path / "features_missing_label.csv"
-    df.to_csv(input_path, index=False)
-
-    try:
-        load_feature_data(input_path)
-        assert False, "Expected ValueError for missing label column."
-    except ValueError as error:
-        assert "Missing label column" in str(error)
+def test_purge_gaps_are_excluded_and_exactly_fifty_steps():
+    df = make_feature_df()
+    splits = build_chronological_splits(df)
+    assigned_steps = set(splits.train_steps + splits.validation_steps + splits.test_steps)
+    assert len(splits.first_purge_steps) == 50
+    assert len(splits.second_purge_steps) == 50
+    assert not (set(splits.first_purge_steps) | set(splits.second_purge_steps)) & assigned_steps
 
 
-def test_prepare_model_inputs_splits_features_labels_and_metadata():
-    df = make_test_feature_df(num_rows=20)
-
-    X, y, meta = prepare_model_inputs(df)
-
-    assert len(X) == len(df)
-    assert len(y) == len(df)
-    assert len(meta) == len(df)
-
-    assert "any_anomaly" not in X.columns
-    assert "anomaly_type" not in X.columns
-    assert "target_sensor" not in X.columns
-    assert "temperature_anomaly" not in X.columns
-    assert "temperature_dir_imbalance_10" not in X.columns
-
-    assert "temperature_delta" in X.columns
-    assert "temperature_zscore" in X.columns
-
-    assert set(["step", "machine_id", "anomaly_type", "target_sensor"]).issubset(
-        set(meta.columns)
-    )
+def test_every_machine_uses_the_same_boundaries():
+    df = make_feature_df()
+    splits = build_chronological_splits(df)
+    for machine_id in df["machine_id"].unique():
+        machine_rows = df[df["machine_id"] == machine_id]
+        assert set(machine_rows.loc[splits.train_idx.intersection(machine_rows.index), "step"]) == set(splits.train_steps)
+        assert set(machine_rows.loc[splits.validation_idx.intersection(machine_rows.index), "step"]) == set(splits.validation_steps)
+        assert set(machine_rows.loc[splits.test_idx.intersection(machine_rows.index), "step"]) == set(splits.test_steps)
 
 
-def test_split_train_test_returns_disjoint_indices():
-    df = make_test_feature_df(num_rows=40)
-    X, y, meta = prepare_model_inputs(df)
-
-    train_idx, test_idx = split_train_test(df, y)
-
-    assert len(train_idx) + len(test_idx) == len(df)
-    assert set(train_idx).isdisjoint(set(test_idx))
-
-
-def test_train_model_and_threshold_sweep_returns_expected_outputs():
-    df = make_test_feature_df(num_rows=40)
-
-    X, y, meta = prepare_model_inputs(df)
-    train_idx, test_idx = split_train_test(df, y)
-
-    X_train = X.loc[train_idx]
-    X_test = X.loc[test_idx]
-
-    y_train = y.loc[train_idx]
-    y_test = y.loc[test_idx]
-
-    meta_test = meta.loc[test_idx].copy()
-
-    trained_model = train_model(X_train, y_train)
-
-    threshold_df, predictions_df = run_threshold_sweep(
-        model=trained_model,
-        df=df,
-        X_test=X_test,
-        y_test=y_test,
-        meta_test=meta_test,
-        test_idx=test_idx,
-    )
-
-    assert len(threshold_df) == len(THRESHOLDS)
-    assert MODEL_THRESHOLD in threshold_df["threshold"].values
-
-    assert len(predictions_df) == len(test_idx)
-    assert "real_value" in predictions_df.columns
-    assert "prediction" in predictions_df.columns
-    assert "anomaly_score" in predictions_df.columns
-    assert "threshold" in predictions_df.columns
-
-    assert set(predictions_df["threshold"].unique()) == {MODEL_THRESHOLD}
+def test_shuffling_rows_does_not_change_membership():
+    df = make_feature_df()
+    ordered = build_chronological_splits(df)
+    shuffled = build_chronological_splits(df.sample(frac=1, random_state=2))
+    assert set(ordered.train_idx) == set(shuffled.train_idx)
+    assert set(ordered.validation_idx) == set(shuffled.validation_idx)
+    assert set(ordered.test_idx) == set(shuffled.test_idx)
+    assert ordered.train_steps == shuffled.train_steps
 
 
-def test_save_predictions_and_threshold_results_write_files(tmp_path):
-    predictions_df = pd.DataFrame(
-        [
-            {
-                "step": 1,
-                "machine_id": 1,
-                "real_value": 1,
-                "prediction": 1,
-                "anomaly_score": 0.95,
-                "threshold": MODEL_THRESHOLD,
-            }
-        ]
-    )
-
-    threshold_df = pd.DataFrame(
-        [
-            {
-                "threshold": MODEL_THRESHOLD,
-                "accuracy": 1.0,
-                "precision": 1.0,
-                "f1": 1.0,
-                "false_positives": 0,
-                "false_negatives": 0,
-                "anomaly_recall": 1.0,
-                "oscillation_recall": np.nan,
-                "current_osc_recall": np.nan,
-                "voltage_osc_recall": np.nan,
-            }
-        ]
-    )
-
-    predictions_path = tmp_path / "predictions.csv"
-    threshold_path = tmp_path / "outputs" / "threshold_results.csv"
-
-    save_predictions(predictions_df, predictions_path)
-    save_threshold_results(threshold_df, threshold_path)
-
-    assert predictions_path.exists()
-    assert threshold_path.exists()
+def test_all_rows_are_assigned_to_a_split_or_purge_gap():
+    df = make_feature_df()
+    splits = build_chronological_splits(df)
+    purge_idx = df.index[df["step"].isin(splits.first_purge_steps + splits.second_purge_steps)]
+    assigned = set(splits.train_idx) | set(splits.validation_idx) | set(splits.test_idx) | set(purge_idx)
+    assert assigned == set(df.index)
 
 
-def test_save_feature_importance_writes_file(tmp_path):
-    df = make_test_feature_df(num_rows=40)
-
-    X, y, meta = prepare_model_inputs(df)
-    train_idx, test_idx = split_train_test(df, y)
-
-    model = train_model(X.loc[train_idx], y.loc[train_idx])
-
-    output_path = tmp_path / "feature_importance.csv"
-
-    feature_importance_df = save_feature_importance(
-        model=model,
-        feature_columns=X.columns,
-        output_path=output_path,
-    )
-
-    assert output_path.exists()
-    assert feature_importance_df is not None
-    assert "feature" in feature_importance_df.columns
-    assert "importance" in feature_importance_df.columns
-    assert len(feature_importance_df) == len(X.columns)
+@pytest.mark.parametrize(
+    "df, kwargs",
+    [
+        (pd.DataFrame({"other": [1]}), {}),
+        (pd.DataFrame({"step": []}), {}),
+        (make_feature_df(), {"train_fraction": 0.6, "validation_fraction": 0.2, "test_fraction": 0.1}),
+        (make_feature_df(), {"train_fraction": 0}),
+        (make_feature_df(), {"validation_fraction": -0.1}),
+        (make_feature_df(), {"purge_gap_steps": -1}),
+        (make_feature_df(steps=102), {}),
+    ],
+)
+def test_split_rejects_invalid_inputs(df, kwargs):
+    with pytest.raises(ValueError):
+        build_chronological_splits(df, **kwargs)
 
 
-def test_run_model_pipeline_writes_expected_outputs(tmp_path):
-    df = make_test_feature_df(num_rows=40)
+def test_threshold_selection_uses_highest_validation_f1():
+    X = pd.DataFrame({"feature": range(4)})
+    y = pd.Series([1, 1, 0, 0])
+    meta = pd.DataFrame({"anomaly_type": ["none"] * 4, "target_sensor": ["none"] * 4})
+    selection = select_threshold(FixedModel([0.9, 0.5, 0.4, 0.2]), X, y, meta)
+    assert selection.selected_threshold == 0.45
 
+
+def test_threshold_selection_tie_breaking_is_deterministic():
+    X = pd.DataFrame({"feature": range(4)})
+    y = pd.Series([1, 1, 0, 0])
+    meta = pd.DataFrame({"anomaly_type": ["none"] * 4, "target_sensor": ["none"] * 4})
+    selection = select_threshold(FixedModel([0.9, 0.4, 0.4, 0.4]), X, y, meta, [0.35, 0.45])
+    assert selection.selected_threshold == 0.35
+
+
+def test_threshold_selection_accepts_no_test_data():
+    parameters = inspect.signature(select_threshold).parameters
+    assert not {"X_test", "y_test", "meta_test"} & set(parameters)
+
+
+def test_changing_test_data_cannot_change_selected_threshold():
+    X = pd.DataFrame({"feature": range(4)})
+    y = pd.Series([1, 1, 0, 0])
+    meta = pd.DataFrame({"anomaly_type": ["none"] * 4, "target_sensor": ["none"] * 4})
+    first = select_threshold(FixedModel([0.9, 0.5, 0.4, 0.2]), X, y, meta)
+    second = select_threshold(FixedModel([0.9, 0.5, 0.4, 0.2]), X, y, meta)
+    assert first.selected_threshold == second.selected_threshold
+
+
+def test_final_test_predictions_use_selected_threshold_and_metrics_match():
+    X = pd.DataFrame({"feature": range(4)})
+    y = pd.Series([1, 0, 1, 0])
+    meta = pd.DataFrame({"anomaly_type": ["oscillation", "none", "oscillation", "none"], "target_sensor": ["current", "none", "voltage", "none"]})
+    result, predictions, scores = evaluate_final_test_set(FixedModel([0.8, 0.7, 0.2, 0.1]), X, y, meta, 0.5)
+    assert predictions.tolist() == [int(score >= 0.5) for score in scores]
+    assert (result["true_negatives"], result["false_positives"], result["false_negatives"], result["true_positives"]) == (1, 1, 1, 1)
+    assert result["accuracy"] == 0.5
+    assert result["precision"] == 0.5
+    assert result["anomaly_recall"] == 0.5
+    assert result["f1"] == 0.5
+
+
+def test_prepare_model_inputs_excludes_labels_and_metadata():
+    X, y, meta = prepare_model_inputs(make_feature_df())
+    assert "any_anomaly" not in X
+    assert "temperature_anomaly" not in X
+    assert "temperature_dir_imbalance_10" not in X
+    assert len(X) == len(y) == len(meta)
+
+
+def test_pipeline_writes_final_test_outputs_and_metadata(tmp_path):
     input_path = tmp_path / "sensor_data_features.csv"
     predictions_path = tmp_path / "predictions.csv"
-    threshold_results_path = tmp_path / "outputs" / "threshold_results.csv"
-    feature_importance_path = tmp_path / "feature_importance.csv"
-
-    df.to_csv(input_path, index=False)
-
-    model, threshold_df, predictions_df, feature_importance_df = run_model_pipeline(
+    validation_path = tmp_path / "validation_threshold_results.csv"
+    test_metrics_path = tmp_path / "test_metrics.csv"
+    importance_path = tmp_path / "feature_importance.csv"
+    make_feature_df().to_csv(input_path, index=False)
+    _, validation_results, predictions, _ = run_model_pipeline(
         input_csv=input_path,
         predictions_output_path=predictions_path,
-        threshold_results_output_path=threshold_results_path,
-        feature_importance_output_path=feature_importance_path,
+        validation_threshold_results_output_path=validation_path,
+        test_metrics_output_path=test_metrics_path,
+        feature_importance_output_path=importance_path,
     )
-
-    assert predictions_path.exists()
-    assert threshold_results_path.exists()
-    assert feature_importance_path.exists()
-
-    assert len(threshold_df) == len(THRESHOLDS)
-    assert len(predictions_df) > 0
-    assert feature_importance_df is not None
+    test_metrics = pd.read_csv(test_metrics_path)
+    with open("artifacts/model_metadata.json") as file:
+        metadata = json.load(file)
+    assert len(validation_results) == len(THRESHOLDS)
+    assert len(test_metrics) == 1
+    assert len(predictions) == metadata["test_rows"]
+    assert set(predictions["threshold"]) == {metadata["threshold"]}
+    assert metadata["first_purge_step_end"] - metadata["first_purge_step_start"] + 1 == 50
+    assert metadata["second_purge_step_end"] - metadata["second_purge_step_start"] + 1 == 50
