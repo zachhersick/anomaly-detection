@@ -247,19 +247,20 @@ outputs/sensor_data_features.csv
 
 ## Model Training
 
-`model.py` trains a Random Forest classifier and writes:
+`model.py` trains a Random Forest classifier using chronological global timestep boundaries shared by every machine. The earliest usable timesteps train the model, the middle validation period selects the classification threshold, and the latest period is reserved for final evaluation. Two 50-timestep purge gaps prevent overlapping rolling-window features from crossing dataset boundaries.
+
+The evaluation uses 60% training, 20% validation, and 20% testing, with validation-based threshold selection and untouched chronological test metrics.
+
+It writes:
 
 ```text
 outputs/predictions.csv
 outputs/feature_importance.csv
-outputs/threshold_results.csv
+outputs/validation_threshold_results.csv
+outputs/test_metrics.csv
 ```
 
-The default anomaly threshold is configured in `config.py`:
-
-```text
-0.35
-```
+The saved model threshold is selected from validation F1, then frozen for final test evaluation.
 
 ---
 
@@ -550,7 +551,8 @@ outputs/sensor_data_raw.csv
 outputs/sensor_data_features.csv
 outputs/predictions.csv
 outputs/feature_importance.csv
-outputs/threshold_results.csv
+outputs/validation_threshold_results.csv
+outputs/test_metrics.csv
 outputs/alerts.csv
 outputs/alert_events.csv
 outputs/ablation_results.csv
