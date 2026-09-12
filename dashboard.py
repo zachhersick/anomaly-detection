@@ -1,35 +1,59 @@
 import pandas as pd
 import requests
 import streamlit as st
+import time
 
 from config import API_BASE_URL
 
 
 def fetch_dashboard_run(run_id: int):
-    """
-    Fetch dashboard data for one pipeline run from the FastAPI backend.
-    """
     url = f"{API_BASE_URL}/dashboard/runs/{run_id}"
 
-    try:
-        response = requests.get(url, timeout=75)
-    except requests.exceptions.ConnectionError:
-        return None, "Could not connect to the FastAPI server. Make sure it is running."
-    except requests.exceptions.Timeout:
-        return None, "The API request timed out."
+    max_attempts = 15
 
-    if response.status_code != 200:
+    for attempt in range(max_attempts):
         try:
-            error_body = response.json()
+            response = requests.get(url, timeout=10)
+
+        except requests.exceptions.ConnectionError:
+            if attempt < max_attempts - 1:
+                time.sleep(5)
+                continue
+
+            return None, "Could not connect to the FastAPI server."
+
+        except requests.exceptions.Timeout:
+            if attempt < max_attempts - 1:
+                time.sleep(5)
+                continue
+
+            return None, "The API request timed out."
+
+        if response.status_code in (502, 503):
+            if attempt < max_attempts - 1:
+                time.sleep(5)
+                continue
+
+        if response.status_code != 200:
+            try:
+                error_body = response.json()
+            except ValueError:
+                error_body = response.text
+
+            return None, (
+                f"Request failed with status code "
+                f"{response.status_code}: {error_body}"
+            )
+
+        try:
+            return response.json(), None
         except ValueError:
-            error_body = response.text
+            return None, (
+                "API returned a successful response, "
+                "but it was not valid JSON."
+            )
 
-        return None, f"Request failed with status code {response.status_code}: {error_body}"
-
-    try:
-        return response.json(), None
-    except ValueError:
-        return None, "API returned a successful response, but it was not valid JSON."
+    return None, "API did not become available."
 
 
 def show_summary_metrics(summary: dict):
@@ -153,7 +177,8 @@ run_id = st.number_input(
 )
 
 if st.button("Load Dashboard"):
-    data, error = fetch_dashboard_run(int(run_id))
+    with st.spinner("Loading pipeline data..."):
+        data, error = fetch_dashboard_run(int(run_id))
 
     if error is not None:
         st.error(error)
