@@ -12,7 +12,7 @@ def fetch_dashboard_run(run_id: int):
     url = f"{API_BASE_URL}/dashboard/runs/{run_id}"
 
     try:
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=75)
     except requests.exceptions.ConnectionError:
         return None, "Could not connect to the FastAPI server. Make sure it is running."
     except requests.exceptions.Timeout:
