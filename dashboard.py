@@ -6,54 +6,65 @@ import time
 from config import API_BASE_URL
 
 
+def wait_for_api():
+    health_url = f"{API_BASE_URL}/health"
+
+    max_attempts = 36  # ~3 minutes
+
+    for _ in range(max_attempts):
+        try:
+            response = requests.get(health_url, timeout=10)
+
+            if response.status_code == 200:
+                return True
+
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        ):
+            pass
+
+        time.sleep(5)
+
+    return False
+
+
 def fetch_dashboard_run(run_id: int):
+    if not wait_for_api():
+        return None, (
+            "The API could not start. Please try again in a moment."
+        )
+
     url = f"{API_BASE_URL}/dashboard/runs/{run_id}"
 
-    max_attempts = 15
+    try:
+        response = requests.get(url, timeout=30)
 
-    for attempt in range(max_attempts):
+    except requests.exceptions.ConnectionError:
+        return None, "Could not connect to the FastAPI server."
+
+    except requests.exceptions.Timeout:
+        return None, "The API request timed out."
+
+    if response.status_code != 200:
         try:
-            response = requests.get(url, timeout=10)
-
-        except requests.exceptions.ConnectionError:
-            if attempt < max_attempts - 1:
-                time.sleep(5)
-                continue
-
-            return None, "Could not connect to the FastAPI server."
-
-        except requests.exceptions.Timeout:
-            if attempt < max_attempts - 1:
-                time.sleep(5)
-                continue
-
-            return None, "The API request timed out."
-
-        if response.status_code in (502, 503):
-            if attempt < max_attempts - 1:
-                time.sleep(5)
-                continue
-
-        if response.status_code != 200:
-            try:
-                error_body = response.json()
-            except ValueError:
-                error_body = response.text
-
-            return None, (
-                f"Request failed with status code "
-                f"{response.status_code}: {error_body}"
-            )
-
-        try:
-            return response.json(), None
+            error_body = response.json()
         except ValueError:
-            return None, (
-                "API returned a successful response, "
-                "but it was not valid JSON."
-            )
+            error_body = "The API returned an unexpected response."
 
-    return None, "API did not become available."
+        return None, (
+            f"Request failed with status code "
+            f"{response.status_code}: {error_body}"
+        )
+
+    try:
+        return response.json(), None
+
+    except ValueError:
+        return None, (
+            "API returned a successful response, "
+            "but it was not valid JSON."
+        )
 
 
 def show_summary_metrics(summary: dict):
