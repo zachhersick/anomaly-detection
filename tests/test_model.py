@@ -171,6 +171,7 @@ def test_pipeline_writes_final_test_outputs_and_metadata(tmp_path):
     validation_path = tmp_path / "validation_threshold_results.csv"
     test_metrics_path = tmp_path / "test_metrics.csv"
     importance_path = tmp_path / "feature_importance.csv"
+    artifact_directory = tmp_path / "artifacts"
     make_feature_df().to_csv(input_path, index=False)
     _, validation_results, predictions, _ = run_model_pipeline(
         input_csv=input_path,
@@ -178,13 +179,18 @@ def test_pipeline_writes_final_test_outputs_and_metadata(tmp_path):
         validation_threshold_results_output_path=validation_path,
         test_metrics_output_path=test_metrics_path,
         feature_importance_output_path=importance_path,
+        artifact_directory=artifact_directory,
     )
     test_metrics = pd.read_csv(test_metrics_path)
-    with open("artifacts/model_metadata.json") as file:
+    with open(artifact_directory / "model_metadata.json") as file:
         metadata = json.load(file)
+    assert (artifact_directory / "model.joblib").exists()
+    assert (artifact_directory / "feature_columns.json").exists()
+    assert (artifact_directory / "model_metadata.json").exists()
     assert len(validation_results) == len(THRESHOLDS)
     assert len(test_metrics) == 1
     assert len(predictions) == metadata["test_rows"]
     assert set(predictions["threshold"]) == {metadata["threshold"]}
     assert metadata["first_purge_step_end"] - metadata["first_purge_step_start"] + 1 == 50
     assert metadata["second_purge_step_end"] - metadata["second_purge_step_start"] + 1 == 50
+    
