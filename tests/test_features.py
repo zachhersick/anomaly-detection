@@ -1,4 +1,6 @@
 import pandas as pd
+import statistics
+import pytest
 
 from features import build_features, save_feature_outputs
 from generator import generate_sensor_data
@@ -169,3 +171,49 @@ def test_save_features_creates_missing_path(tmp_path):
 
     pd.testing.assert_frame_equal(features_df, saved_features_df)
     pd.testing.assert_frame_equal(retention_df, saved_retention_df)
+    
+    
+def test_build_features_handles_shuffled_inputs():
+    raw_df = generate_sensor_data(
+        num_machines=2,
+        num_timesteps=80,
+        fixed_seed=295,
+    )
+    
+    shuffled_df = raw_df.sample(frac=1, random_state=42).reset_index(drop=True)
+    
+    raw_features, _ = build_features(raw_df)
+    shuffled_features, _ = build_features(shuffled_df)
+    
+    pd.testing.assert_frame_equal(
+        raw_features.sort_values(by=["machine_id", "step"]).reset_index(drop=True),
+        shuffled_features.sort_values(by=["machine_id", "step"]).reset_index(drop=True),
+    )
+    
+
+def test_build_features_calculations_are_correct():
+    pattern = [10, 15, 25, 20, 10, 15, 25, 20, 10, 30]
+
+    test_data = pd.DataFrame({
+        "machine_id": [1] * 80,
+        "step": range(1, 81),
+        "temperature": pattern * 8,
+        "pressure": [50] * 80,
+        "vibration": [2] * 80,
+        "flow_rate": [1.0] * 80,
+        "voltage": [120] * 80,
+        "current": [10] * 80,
+        "anomaly_type": ["none"] * 80,
+        "target_sensor": ["none"] * 80,
+    })
+    
+    features, _ = build_features(test_data)
+    
+    row = features.loc[features["step"] == 80]
+    assert len(row) == 1
+    row = row.iloc[0]
+    
+    assert row["temperature_delta"] == pytest.approx(20)
+    assert row["temperature_roll_mean"] == pytest.approx(18)
+    assert row["temperature_roll_std"] == pytest.approx(7.14920353)
+    assert row["temperature_zscore"] == pytest .approx(1.67850865)
