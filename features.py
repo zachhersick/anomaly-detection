@@ -18,7 +18,7 @@ def slope(window_values):
 
 def build_features(df):
     df = df.copy()
-    df.sort_values(by=['machine_id', 'step']).reset_index(drop=True)
+    df = df.sort_values(by=['machine_id', 'step']).reset_index(drop=True)
     
     for sensor in sensors:
         sensor_group = df.groupby('machine_id', sort=False)[sensor]
@@ -278,6 +278,8 @@ def build_features(df):
 
         df[f'{sensor}_centered_signal_t-5'] = short_centered_group.shift(5)
         df[f'{sensor}_centered_signal_t-10'] = short_centered_group.shift(10)
+        
+        df = df.copy()
 
     before_counts = df.groupby(['anomaly_type', 'target_sensor']).size().rename('before_drop')
 

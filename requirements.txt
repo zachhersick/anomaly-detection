@@ -5,6 +5,7 @@ pytest
 fastapi
 uvicorn
 httpx
+httpx2
 streamlit
 requests
 joblib
