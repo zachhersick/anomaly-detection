@@ -233,6 +233,7 @@ def run_model_pipeline(
     validation_threshold_results_output_path=VALIDATION_THRESHOLD_RESULTS_OUTPUT_PATH,
     test_metrics_output_path=TEST_METRICS_OUTPUT_PATH,
     feature_importance_output_path=FEATURE_IMPORTANCE_OUTPUT_PATH,
+    artifact_directory=ARTIFACT_DIR,
 ):
     df = load_feature_data(input_csv)
     X, y, meta = prepare_model_inputs(df)
@@ -253,10 +254,10 @@ def run_model_pipeline(
     predictions_df["anomaly_score"] = test_scores
     predictions_df["threshold"] = threshold_selection.selected_threshold
 
-    ARTIFACT_DIR.mkdir(exist_ok=True)
-    joblib.dump(model, ARTIFACT_DIR / "model.joblib")
+    artifact_directory.mkdir(exist_ok=True)
+    joblib.dump(model, artifact_directory / "model.joblib")
     feature_columns = list(X_train.columns)
-    with open(ARTIFACT_DIR / "feature_columns.json", "w") as file:
+    with open(artifact_directory / "feature_columns.json", "w") as file:
         json.dump(feature_columns, file, indent=4)
     metadata = {
         "model_type": "RandomForestClassifier",
@@ -283,7 +284,7 @@ def run_model_pipeline(
         "test_step_end": step_range(splits.test_steps)[1],
         "created_at": datetime.now().isoformat(),
     }
-    with open(ARTIFACT_DIR / "model_metadata.json", "w") as file:
+    with open(artifact_directory / "model_metadata.json", "w") as file:
         json.dump(metadata, file, indent=4)
 
     save_dataframe(predictions_df, predictions_output_path)

@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from pathlib import Path
 
 INPUT_PATH = 'outputs/sensor_data_raw.csv'
 FEATURES_OUTPUT_PATH = 'outputs/sensor_data_features.csv'
@@ -295,6 +296,10 @@ def build_features(df):
     return df, counts
 
 def save_feature_outputs(features_df, retention_df, features_output_path=FEATURES_OUTPUT_PATH, retention_output_path=RETENTION_OUTPUT_PATH):
+    features_output_path = Path(features_output_path)
+    retention_output_path = Path(retention_output_path)
+    features_output_path.parent.mkdir(parents=True, exist_ok=True)
+    retention_output_path.parent.mkdir(parents=True, exist_ok=True)
     features_df.to_csv(features_output_path, index=False)
     retention_df.to_csv(retention_output_path, index=False)
     

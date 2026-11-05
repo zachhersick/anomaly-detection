@@ -142,3 +142,30 @@ def test_save_feature_outputs_writes_files(tmp_path):
 
     assert len(saved_features_df) == len(features_df)
     assert len(saved_retention_df) == len(retention_df)
+    
+
+def test_save_features_creates_missing_path(tmp_path):
+    features_output_path = tmp_path / "features" / "run_1" / "features.csv"
+    retention_output_path = tmp_path / "retention" / "run_1" / "retention.csv"
+    
+    features_df = pd.DataFrame({"temperature": [1, 2, 3, 4]})
+    retention_df = pd.DataFrame({"rows_retained": [5, 6, 7, 8]})
+    
+    assert not features_output_path.parent.exists()
+    assert not retention_output_path.parent.exists()
+    
+    save_feature_outputs(
+        features_df=features_df,
+        retention_df=retention_df,
+        features_output_path=features_output_path,
+        retention_output_path=retention_output_path,
+    )
+    
+    assert features_output_path.exists()
+    assert retention_output_path.exists()
+
+    saved_features_df = pd.read_csv(features_output_path)
+    saved_retention_df = pd.read_csv(retention_output_path)
+
+    pd.testing.assert_frame_equal(features_df, saved_features_df)
+    pd.testing.assert_frame_equal(retention_df, saved_retention_df)
