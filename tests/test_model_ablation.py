@@ -1,7 +1,7 @@
 import pandas as pd
 
-import model_ablation
-from model import ThresholdSelection, build_chronological_splits
+import anomaly_detection.model_ablation as model_ablation
+from anomaly_detection.model import ThresholdSelection, build_chronological_splits
 
 
 def make_feature_df():

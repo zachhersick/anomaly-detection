@@ -2,8 +2,8 @@ import pandas as pd
 import statistics
 import pytest
 
-from features import build_features, save_feature_outputs
-from generator import generate_sensor_data
+from anomaly_detection.features import build_features, save_feature_outputs
+from anomaly_detection.generator import generate_sensor_data
 
 
 def test_build_features_returns_expected_outputs():

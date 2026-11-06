@@ -2,8 +2,8 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from typing import Annotated, Literal
 import sqlite3
 
-from db import get_connection
-from db_queries import (
+from .db import get_connection
+from .db_queries import (
     get_latest_run_id,
     get_pipeline_runs,
     get_alert_events_for_run,
@@ -23,9 +23,9 @@ from db_queries import (
 )
 
 
-from model_serving import predict_feature_row
+from .model_serving import predict_feature_row
 
-from schemas import (
+from .schemas import (
     HealthResponse,
     PipelineRunResponse,
     LatestRunResponse,

@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from alert_events import (
+from anomaly_detection.alert_events import (
     MAX_STEP_GAP,
     finalize_event,
     get_severity_priority,

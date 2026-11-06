@@ -3,8 +3,8 @@ import sqlite3
 
 import pandas as pd
 
-from db import create_tables, get_connection
-from config import DB_PATH
+from .db import create_tables, get_connection
+from .config import DB_PATH
 
 
 SENSOR_DATA_RAW_PATH = Path("outputs/sensor_data_raw.csv")

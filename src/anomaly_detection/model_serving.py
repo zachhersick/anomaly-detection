@@ -2,7 +2,7 @@ import joblib
 import json
 import pandas as pd
 
-from config import ARTIFACT_DIR
+from .config import ARTIFACT_DIR
 
 
 def load_model_artifacts():

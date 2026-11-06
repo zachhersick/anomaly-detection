@@ -1,6 +1,6 @@
 import pytest
 
-from run_pipeline import run_pipeline, run_step
+from anomaly_detection.run_pipeline import run_pipeline, run_step
 
 
 def test_run_step_calls_step_function():

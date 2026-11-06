@@ -2,7 +2,7 @@ import sqlite3
 
 import pytest
 
-from db import create_tables
+from anomaly_detection.db import create_tables
 
 
 @pytest.fixture

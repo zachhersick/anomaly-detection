@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from model import (
+from anomaly_detection.model import (
     THRESHOLDS,
     build_chronological_splits,
     evaluate_final_test_set,

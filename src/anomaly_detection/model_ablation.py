@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from config import OUTPUT_DIR
-from model import (
+from .config import OUTPUT_DIR
+from .model import (
     build_chronological_splits,
     evaluate_final_test_set,
     find_cols_with_suffixes,

@@ -10,7 +10,7 @@ import pandas as pd
 from sklearn import metrics
 from sklearn.ensemble import RandomForestClassifier
 
-from config import (
+from .config import (
     ARTIFACT_DIR,
     OUTPUT_DIR,
     PURGE_GAP_STEPS,

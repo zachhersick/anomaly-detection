@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from alerts import (
+from anomaly_detection.alerts import (
     ALERT_STATUS_OPEN,
     ALERT_TYPE_MODEL,
     ALERT_TYPE_MODEL_AND_THRESHOLD,

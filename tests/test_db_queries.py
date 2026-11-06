@@ -3,9 +3,9 @@ import sqlite3
 import pandas as pd
 import pytest
 
-from db import create_tables
-from load_to_db import insert_pipeline_run, load_dataframe_to_table
-from db_queries import (
+from anomaly_detection.db import create_tables
+from anomaly_detection.load_to_db import insert_pipeline_run, load_dataframe_to_table
+from anomaly_detection.db_queries import (
     get_latest_run_id,
     get_pipeline_runs,
     get_alert_events_for_run,
