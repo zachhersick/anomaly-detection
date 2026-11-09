@@ -1,5 +1,7 @@
 *.env
 *.venv
+venv/
+.venv/
 *.mypy_cache
 *.csv
 metrics.txt

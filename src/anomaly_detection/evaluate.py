@@ -1,8 +1,10 @@
 import pandas as pd
 from sklearn import metrics
 
+from .config import (
+    PREDICTIONS_PATH,
+)
 
-PREDICTIONS_INPUT_PATH = "outputs/predictions.csv"
 DEBUG_OSCILLATION_DETAILS = False
 
 OSC_FEATURE_SUFFIXES = [
@@ -12,7 +14,7 @@ OSC_FEATURE_SUFFIXES = [
 ]
 
 
-def load_evaluation_inputs(predictions_path=PREDICTIONS_INPUT_PATH):
+def load_evaluation_inputs(predictions_path=PREDICTIONS_PATH):
     """Load final untouched test predictions."""
     return pd.read_csv(predictions_path)
 
@@ -99,7 +101,7 @@ def print_evaluation_report(predictions_df, evaluation_tables, overall_metrics, 
         debug_oscillation_sensor(predictions_df, "voltage")
 
 
-def run_evaluation(predictions_path=PREDICTIONS_INPUT_PATH, debug_oscillation_details=DEBUG_OSCILLATION_DETAILS):
+def run_evaluation(predictions_path=PREDICTIONS_PATH, debug_oscillation_details=DEBUG_OSCILLATION_DETAILS):
     predictions_df = load_evaluation_inputs(predictions_path)
     evaluation_tables = build_evaluation_tables(predictions_df)
     overall_metrics = build_overall_metrics(predictions_df)

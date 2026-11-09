@@ -1,47 +1,42 @@
-from fastapi import Depends, FastAPI, HTTPException, Query
-from typing import Annotated, Literal
 import sqlite3
+from typing import Annotated
 
-from db import get_connection
-from db_queries import (
-    get_latest_run_id,
-    get_pipeline_runs,
-    get_alert_events_for_run,
-    get_critical_alert_events,
-    get_row_alerts_for_event,
-    get_sensor_readings_for_machine,
-    get_predictions_for_run,
-    run_exists,
+from fastapi import Depends, FastAPI, HTTPException, Query
+
+from .db import get_connection
+from .db_queries import (
     event_exists,
+    get_anomaly_type_distribution_for_run,
+    get_critical_alert_events,
     get_filtered_alert_events_for_run,
     get_filtered_predictions_for_run,
+    get_latest_run_id,
+    get_pipeline_runs,
+    get_row_alerts_for_event,
     get_run_summary,
-    get_anomaly_type_distribution_for_run,
     get_sensor_distribution_for_run,
+    get_sensor_readings_for_machine,
     get_severity_distribution_for_run,
     get_top_critical_events_for_run,
+    run_exists,
 )
-
-
-from model_serving import predict_feature_row
-
-from schemas import (
-    HealthResponse,
-    PipelineRunResponse,
-    LatestRunResponse,
+from .model_serving import predict_feature_row
+from .schemas import (
     AlertEventResponse,
-    RowAlertResponse,
-    SensorReadingResponse,
-    PredictionResponse,
-    RunSummaryResponse,
     AnomalyTypeDistributionResponse,
-    SensorDistributionResponse,
-    SeverityDistributionResponse,
     DashboardRunResponse,
+    HealthResponse,
+    LatestRunResponse,
+    PipelineRunResponse,
     PredictionRequest,
+    PredictionResponse,
     PredictionResultResponse,
+    RowAlertResponse,
+    RunSummaryResponse,
+    SensorDistributionResponse,
+    SensorReadingResponse,
+    SeverityDistributionResponse,
 )
-
 
 app = FastAPI(
     title="Industrial Anomaly Detection API",
@@ -278,11 +273,11 @@ def post_model_serve(request: PredictionRequest):
 def ensure_run_exists(conn, run_id: int):
     response = run_exists(conn, run_id)
     
-    if response == False:
+    if not response:
         raise HTTPException(status_code=404, detail="Pipeline run not found")
     
 def ensure_event_exists(conn, event_id, run_id: int):
     response = event_exists(conn, run_id, event_id)
     
-    if response == False:
+    if not response:
         raise HTTPException(status_code=404, detail="Alert event not found")

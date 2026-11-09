@@ -1,7 +1,7 @@
-from dataclasses import dataclass
-from datetime import datetime
 import json
 import math
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -10,22 +10,19 @@ import pandas as pd
 from sklearn import metrics
 from sklearn.ensemble import RandomForestClassifier
 
-from config import (
+from .config import (
     ARTIFACT_DIR,
-    OUTPUT_DIR,
+    FEATURE_IMPORTANCE_PATH,
+    FEATURES_PATH,
+    PREDICTIONS_PATH,
     PURGE_GAP_STEPS,
     RANDOM_STATE,
     TEST_FRACTION,
+    TEST_METRICS_PATH,
     TRAIN_FRACTION,
     VALIDATION_FRACTION,
+    VALIDATION_RESULTS_PATH,
 )
-
-
-INPUT_CSV = OUTPUT_DIR / "sensor_data_features.csv"
-PREDICTIONS_OUTPUT_PATH = OUTPUT_DIR / "predictions.csv"
-FEATURE_IMPORTANCE_OUTPUT_PATH = OUTPUT_DIR / "feature_importance.csv"
-VALIDATION_THRESHOLD_RESULTS_OUTPUT_PATH = OUTPUT_DIR / "validation_threshold_results.csv"
-TEST_METRICS_OUTPUT_PATH = OUTPUT_DIR / "test_metrics.csv"
 
 LABEL_COL = "any_anomaly"
 
@@ -148,7 +145,7 @@ def build_chronological_splits(
     )
 
 
-def load_feature_data(input_csv=INPUT_CSV):
+def load_feature_data(input_csv=FEATURES_PATH):
     df = pd.read_csv(input_csv).replace([np.inf, -np.inf], np.nan).dropna().copy()
     if LABEL_COL not in df.columns:
         raise ValueError(f"Missing label column: {LABEL_COL}")
@@ -214,7 +211,7 @@ def save_dataframe(df, output_path):
     df.to_csv(output_path, index=False)
 
 
-def save_feature_importance(model, feature_columns, output_path=FEATURE_IMPORTANCE_OUTPUT_PATH):
+def save_feature_importance(model, feature_columns, output_path=FEATURE_IMPORTANCE_PATH):
     if not hasattr(model, "feature_importances_"):
         return None
     feature_importance = pd.DataFrame({"feature": feature_columns, "importance": model.feature_importances_})
@@ -228,11 +225,11 @@ def step_range(steps):
 
 
 def run_model_pipeline(
-    input_csv=INPUT_CSV,
-    predictions_output_path=PREDICTIONS_OUTPUT_PATH,
-    validation_threshold_results_output_path=VALIDATION_THRESHOLD_RESULTS_OUTPUT_PATH,
-    test_metrics_output_path=TEST_METRICS_OUTPUT_PATH,
-    feature_importance_output_path=FEATURE_IMPORTANCE_OUTPUT_PATH,
+    input_csv=FEATURES_PATH,
+    predictions_output_path=PREDICTIONS_PATH,
+    validation_threshold_results_output_path=VALIDATION_RESULTS_PATH,
+    test_metrics_output_path=TEST_METRICS_PATH,
+    feature_importance_output_path=FEATURE_IMPORTANCE_PATH,
     artifact_directory=ARTIFACT_DIR,
 ):
     df = load_feature_data(input_csv)
@@ -282,7 +279,7 @@ def run_model_pipeline(
         "second_purge_step_end": step_range(splits.second_purge_steps)[1],
         "test_step_start": step_range(splits.test_steps)[0],
         "test_step_end": step_range(splits.test_steps)[1],
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now(tz=UTC).isoformat(),
     }
     with open(artifact_directory / "model_metadata.json", "w") as file:
         json.dump(metadata, file, indent=4)

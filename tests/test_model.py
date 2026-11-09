@@ -1,11 +1,12 @@
 import inspect
 import json
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from model import (
+from anomaly_detection.model import (
     THRESHOLDS,
     build_chronological_splits,
     evaluate_final_test_set,
@@ -184,6 +185,9 @@ def test_pipeline_writes_final_test_outputs_and_metadata(tmp_path):
     test_metrics = pd.read_csv(test_metrics_path)
     with open(artifact_directory / "model_metadata.json") as file:
         metadata = json.load(file)
+        
+    timestamp = datetime.fromisoformat(metadata["created_at"])
+    
     assert (artifact_directory / "model.joblib").exists()
     assert (artifact_directory / "feature_columns.json").exists()
     assert (artifact_directory / "model_metadata.json").exists()
@@ -193,4 +197,6 @@ def test_pipeline_writes_final_test_outputs_and_metadata(tmp_path):
     assert set(predictions["threshold"]) == {metadata["threshold"]}
     assert metadata["first_purge_step_end"] - metadata["first_purge_step_start"] + 1 == 50
     assert metadata["second_purge_step_end"] - metadata["second_purge_step_start"] + 1 == 50
+    assert timestamp.tzinfo is not None
+    assert timestamp.utcoffset() == timedelta(0)
     

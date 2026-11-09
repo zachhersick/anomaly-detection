@@ -1,14 +1,14 @@
+venv/
 .venv/
+.git/
 __pycache__/
 .pytest_cache/
-.git/
-.github/
+.ruff_cache/
 
 *.csv
 *.db
 *.sqlite
 *.sqlite3
-metrics.txt
 
 outputs/
 artifacts/

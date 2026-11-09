@@ -4,9 +4,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from api import app, get_db_connection
-from db import create_tables
-from load_to_db import insert_pipeline_run, load_dataframe_to_table
+from anomaly_detection.api import app, get_db_connection
+from anomaly_detection.db import create_tables
+from anomaly_detection.load_to_db import insert_pipeline_run, load_dataframe_to_table
 
 
 @pytest.fixture
@@ -1702,7 +1702,7 @@ def test_post_predict_returns_model_prediction(client, monkeypatch):
             "is_anomaly": True,
         }
 
-    monkeypatch.setattr("api.predict_feature_row", fake_predict_feature_row)
+    monkeypatch.setattr("anomaly_detection.api.predict_feature_row", fake_predict_feature_row)
 
     response = client.post(
         "/predict",

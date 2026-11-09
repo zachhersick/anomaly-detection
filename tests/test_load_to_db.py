@@ -3,11 +3,11 @@ import sqlite3
 import pandas as pd
 import pytest
 
-from db import create_tables
-from load_to_db import (
+from anomaly_detection.db import create_tables
+from anomaly_detection.load_to_db import (
     insert_pipeline_run,
-    load_dataframe_to_table,
     load_csv_if_exists,
+    load_dataframe_to_table,
 )
 
 
