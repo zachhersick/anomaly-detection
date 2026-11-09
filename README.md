@@ -32,26 +32,34 @@ Data generation -> Features -> Model -> Alerts -> Events -> SQLite -> FastAPI ->
 
 ### 1. Install dependencies
 
+Requires **Python 3.11–3.13** and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+From the repository root:
+
 ```bash
-pip install -r requirements.txt
+uv sync --locked --all-extras
 ```
+
+`pyproject.toml` declares core dependencies, optional API/dashboard extras, and development tools. `uv.lock` records the resolved versions so local development and CI use the same dependency set. The dev group is included by default.
+
+The commands below use `uv run --locked --all-extras` so they work without manually activating a virtual environment and retain the API and dashboard extras. If you intentionally use a different environment directory, set `UV_PROJECT_ENVIRONMENT` consistently for `uv sync` and `uv run`.
 
 ### 2. Run the ML pipeline
 
 ```bash
-python run_pipeline.py
+uv run --locked --all-extras python run_pipeline.py
 ```
 
 ### 3. Load outputs into SQLite
 
 ```bash
-python load_to_db.py
+uv run --locked --all-extras python -m anomaly_detection.load_to_db
 ```
 
 ### 4. Start the API
 
 ```bash
-python -m uvicorn api:app --reload
+uv run --locked --all-extras uvicorn anomaly_detection.api:app --reload
 ```
 
 API docs:
@@ -65,37 +73,41 @@ http://127.0.0.1:8000/docs
 In a second terminal:
 
 ```bash
-streamlit run dashboard.py
+uv run --locked --all-extras streamlit run src/anomaly_detection/dashboard.py
 ```
 
 ### 6. Run tests
 
 ```bash
-python -m pytest
+uv run --locked --all-extras python -m pytest
 ```
 
 ---
 
 ## Run with Docker
 
-Before starting Docker, make sure the pipeline has been run and outputs have been loaded into SQLite:
+Before starting Docker, generate the local database and model artifacts. The API container mounts `anomaly_detection.db` and `artifacts/` as **read-only** data; it does not run the training pipeline itself. Run these commands on the host:
 
 ```bash
-python run_pipeline.py
-python load_to_db.py
+uv run --locked --all-extras python run_pipeline.py
+uv run --locked --all-extras python -m anomaly_detection.load_to_db
 ```
 
 If model artifacts are missing, regenerate them with:
 
 ```bash
-python model.py
+uv run --locked --all-extras python -m anomaly_detection.model
 ```
 
 Build and start the API and dashboard:
 
 ```bash
-docker compose up --build
+docker compose config
+docker compose up --build -d
+docker compose ps
 ```
+
+If the containers fail, inspect `docker compose logs --tail=80 api` and `docker compose logs --tail=80 dashboard`. The application is installed inside the images; Docker Compose deliberately does not bind-mount the repository over `/app`.
 
 This starts:
 
@@ -160,6 +172,8 @@ Pydantic
 Uvicorn
 Streamlit
 Docker
+uv
+Ruff
 pytest
 GitHub Actions
 ```
@@ -169,33 +183,36 @@ GitHub Actions
 ## Repository Structure
 
 ```text
-generator.py              Generate synthetic machine sensor data
-features.py               Build temporal/statistical features
-model.py                  Train model, write predictions, save artifacts
-model_ablation.py         Compare feature-group ablation runs
-evaluate.py               Print model evaluation report
-alerts.py                 Create row-level alerts
-alert_events.py           Group row alerts into events
-run_pipeline.py           Run the full pipeline
+src/anomaly_detection/
+  __init__.py           Installable Python package
+  config.py             Shared sensors, paths, and configuration
+  generator.py          Generate synthetic machine sensor data
+  features.py           Build temporal/statistical features
+  model.py              Train model, write predictions, save artifacts
+  model_ablation.py     Compare feature-group ablation runs
+  evaluate.py           Print model evaluation report
+  alerts.py             Create row-level alerts
+  alert_events.py       Group row alerts into events
+  run_pipeline.py       Full pipeline orchestration
+  db.py                 SQLite schema, connection, and indexes
+  load_to_db.py         Load generated outputs into SQLite
+  db_queries.py         SQLite query helpers
+  api.py                FastAPI backend
+  schemas.py            Pydantic request/response models
+  model_serving.py      Load model artifacts and run inference
+  dashboard.py          Streamlit dashboard
 
-config.py                 Shared project configuration
-db.py                     SQLite schema, connection, and indexes
-load_to_db.py             Load generated outputs into SQLite
-db_queries.py             SQLite query helpers
-
-api.py                    FastAPI backend
-schemas.py                Pydantic request/response models
-model_serving.py          Load model artifacts and run inference
-dashboard.py              Streamlit dashboard
-
-Dockerfile.api            API container definition
-Dockerfile.dashboard      Dashboard container definition
-docker-compose.yml        Local multi-container deployment
-
-tests/                    Pytest suite
-docs/images/              Project screenshots
-.github/workflows/ci.yml  GitHub Actions CI
-requirements.txt          Dependencies
+run_pipeline.py          Root-level compatibility command
+pyproject.toml           Package metadata, core/optional/dev dependencies
+uv.lock                  Committed dependency lockfile
+pytest.ini               Test discovery configuration
+Dockerfile.api           API container definition
+Dockerfile.dashboard     Dashboard container definition
+docker-compose.yml       Local multi-container deployment
+tests/                   Pytest suite
+scripts/                 Artifact integrity verification
+docs/images/             Project screenshots
+.github/workflows/ci.yml GitHub Actions CI
 ```
 
 ---
@@ -285,7 +302,7 @@ model_metadata.json       threshold, model type, feature count, training rows, t
 Regenerate artifacts:
 
 ```bash
-python model.py
+uv run --locked --all-extras python -m anomaly_detection.model
 ```
 
 ---
@@ -307,7 +324,7 @@ without_trend_ratio
 Run:
 
 ```bash
-python model_ablation.py
+uv run --locked --all-extras python -m anomaly_detection.model_ablation
 ```
 
 Main output:
@@ -383,7 +400,7 @@ anomaly_detection.db
 Load generated outputs:
 
 ```bash
-python load_to_db.py
+uv run --locked --all-extras python -m anomaly_detection.load_to_db
 ```
 
 Each load creates a new `run_id`, allowing multiple runs to be stored and compared.
@@ -395,7 +412,7 @@ Each load creates a new `run_id`, allowing multiple runs to be stored and compar
 Start API:
 
 ```bash
-python -m uvicorn api:app --reload
+uv run --locked --all-extras uvicorn anomaly_detection.api:app --reload
 ```
 
 Main endpoints:
@@ -466,7 +483,7 @@ The endpoint expects engineered features, not raw sensor readings. Missing expec
 Run after starting the API:
 
 ```bash
-streamlit run dashboard.py
+uv run --locked --all-extras streamlit run src/anomaly_detection/dashboard.py
 ```
 
 The dashboard displays:
@@ -495,15 +512,23 @@ The dashboard does not read CSV files or SQLite directly.
 Run all tests:
 
 ```bash
-python -m pytest
+uv run --locked --all-extras python -m pytest
 ```
 
 Run selected tests:
 
 ```bash
-python -m pytest tests/test_api.py
-python -m pytest tests/test_db.py
+uv run --locked --all-extras python -m pytest tests/test_api.py
+uv run --locked --all-extras python -m pytest tests/test_db.py
 ```
+
+Run the linter:
+
+```bash
+uv run --locked --all-extras ruff check
+```
+
+The GitHub Actions workflow runs Ruff and pytest on Python 3.11, 3.12, and 3.13. It uses uv's locked dependencies and dependency caching and triggers on pull requests targeting `main` or pushes to `main`.
 
 The test suite covers:
 
@@ -542,6 +567,9 @@ artifacts/
 metrics.txt
 .pytest_cache/
 __pycache__/
+.ruff_cache/
+.venv/
+venv/
 ```
 
 Common outputs:
@@ -585,3 +613,13 @@ Dockerized local deployment
 pytest suite
 GitHub Actions CI
 ```
+
+---
+
+## Dependency and Downstream Integration Notes
+
+- **Dependency source of truth:** Update dependencies in `pyproject.toml`, regenerate `uv.lock` with `uv lock`, and commit both files. Do not use `requirements.txt` to install this package; it is a legacy file awaiting removal.
+- **Model artifacts:** `artifacts/model.joblib` is a Python/joblib pickle. Only load artifacts from trusted sources. A model saved with a different scikit-learn version may not be compatible, which is one reason the lockfile matters.
+- **Configurable runtime paths:** `OUTPUT_DIR`, `ARTIFACT_DIR`, and `DB_PATH` are configured through `anomaly_detection.config`. By default, outputs and artifacts are relative to the repository's working directory.
+- **AN-705 downstream handoff:** The separate `anomalyops-copilot` repository ingests this repository's Python source. Its source-ingestion paths must change from root-level modules (such as `generator.py`, `features.py`, and `model.py`) to `src/anomaly_detection/`. This change is not made in this repository.
+
