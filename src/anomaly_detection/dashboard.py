@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 import streamlit as st
 
-from .config import API_BASE_URL
+from anomaly_detection.config import API_BASE_URL
 
 
 def wait_for_api():
