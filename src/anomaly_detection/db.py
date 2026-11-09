@@ -24,7 +24,7 @@ def create_tables(connection: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS pipeline_runs (
             run_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now')),
             notes TEXT,
             fixed_seed INTEGER,
             model_threshold REAL,

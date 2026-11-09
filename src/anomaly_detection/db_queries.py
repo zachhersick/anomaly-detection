@@ -1,5 +1,3 @@
-import sqlite3
-
 def get_latest_run_id(conn):
     """
     Return the most recent pipeline run_id

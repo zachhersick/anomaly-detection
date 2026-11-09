@@ -1,6 +1,12 @@
 import pandas as pd
 
-from anomaly_detection.evaluate import build_evaluation_tables, build_overall_metrics, build_recall_table, load_evaluation_inputs, run_evaluation
+from anomaly_detection.evaluate import (
+    build_evaluation_tables,
+    build_overall_metrics,
+    build_recall_table,
+    load_evaluation_inputs,
+    run_evaluation,
+)
 
 
 def make_predictions_df():

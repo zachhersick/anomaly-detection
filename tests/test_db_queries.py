@@ -4,18 +4,18 @@ import pandas as pd
 import pytest
 
 from anomaly_detection.db import create_tables
-from anomaly_detection.load_to_db import insert_pipeline_run, load_dataframe_to_table
 from anomaly_detection.db_queries import (
-    get_latest_run_id,
-    get_pipeline_runs,
+    event_exists,
     get_alert_events_for_run,
     get_critical_alert_events,
+    get_latest_run_id,
+    get_pipeline_runs,
+    get_predictions_for_run,
     get_row_alerts_for_event,
     get_sensor_readings_for_machine,
-    get_predictions_for_run,
     run_exists,
-    event_exists,
 )
+from anomaly_detection.load_to_db import insert_pipeline_run, load_dataframe_to_table
 
 
 @pytest.fixture

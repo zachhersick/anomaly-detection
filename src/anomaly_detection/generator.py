@@ -1,14 +1,21 @@
-import random, math
-import pandas as pd
+import math
+import random
 from pathlib import Path
+
+import pandas as pd
+
+from .config import (
+    RAW_DATA_PATH,
+)
+from .config import (
+    SENSORS as sensors,
+)
 
 DEFAULT_NUM_MACHINES = 10
 DEFAULT_NUM_TIMESTEPS = 5000
 DEFAULT_FIXED_SEED = 295
-OUTPUT_PATH = "outputs/sensor_data_raw.csv"
 
 anomalies = ['spike', 'drop', 'drift', 'oscillation', 'stuck_sensor', 'impossible_value']
-sensors = ['temperature', 'pressure', 'vibration', 'flow_rate', 'voltage', 'current']
 
 sensor_ranges = {
     'temperature': (60,100), 
@@ -154,7 +161,7 @@ def stuck_sensor(machine):
     return machine['stuck_value']
 
 def impossible_value(sensor):
-    lo, hi = sensor_ranges[sensor]
+    _, hi = sensor_ranges[sensor]
     if sensor in ['pressure', 'vibration', 'flow_rate']:
         return random.uniform(-10, -1)
     if sensor == 'voltage':
@@ -318,10 +325,10 @@ def main():
         fixed_seed=DEFAULT_FIXED_SEED,
     )        
     
-    save_sensor_data(df, OUTPUT_PATH)
+    save_sensor_data(df, RAW_DATA_PATH)
     
     print(f'Generated {len(df)} rows')
-    print(f'Saved output to {OUTPUT_PATH}')
+    print(f'Saved output to {RAW_DATA_PATH}')
 
 if __name__ == '__main__':
     main()

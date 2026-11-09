@@ -1,7 +1,8 @@
+import time
+
 import pandas as pd
 import requests
 import streamlit as st
-import time
 
 from .config import API_BASE_URL
 

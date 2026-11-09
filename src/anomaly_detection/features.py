@@ -1,16 +1,22 @@
-import pandas as pd
-import numpy as np
 from pathlib import Path
 
-INPUT_PATH = 'outputs/sensor_data_raw.csv'
-FEATURES_OUTPUT_PATH = 'outputs/sensor_data_features.csv'
-RETENTION_OUTPUT_PATH = 'outputs/feature_row_retention.csv'
+import numpy as np
+import pandas as pd
+
+from .config import (
+    FEATURES_PATH,
+    RAW_DATA_PATH,
+    RETENTION_PATH,
+)
+from .config import (
+    SENSORS as sensors,
+)
+
 window = 10
 long_window = 50
 eps = 1e-6
 osc_window = 20
 
-sensors = ['temperature', 'pressure', 'vibration', 'flow_rate', 'voltage', 'current']
 
 def slope(window_values):
     x = np.arange(len(window_values))
@@ -297,7 +303,7 @@ def build_features(df):
     
     return df, counts
 
-def save_feature_outputs(features_df, retention_df, features_output_path=FEATURES_OUTPUT_PATH, retention_output_path=RETENTION_OUTPUT_PATH):
+def save_feature_outputs(features_df, retention_df, features_output_path=FEATURES_PATH, retention_output_path=RETENTION_PATH):
     features_output_path = Path(features_output_path)
     retention_output_path = Path(retention_output_path)
     features_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -306,7 +312,7 @@ def save_feature_outputs(features_df, retention_df, features_output_path=FEATURE
     retention_df.to_csv(retention_output_path, index=False)
     
 def main():
-    df = pd.read_csv(INPUT_PATH)
+    df = pd.read_csv(RAW_DATA_PATH)
     
     features_df, retention_df = build_features(df)
     

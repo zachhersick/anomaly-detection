@@ -1,8 +1,7 @@
-from pathlib import Path
 import hashlib
 import subprocess
 import sys
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ARTIFACT_DIR = ROOT / "artifacts"
@@ -33,11 +32,15 @@ def snapshot_artifacts(directory):
 def main():
     before = snapshot_artifacts(ARTIFACT_DIR)
     
-    result = subprocess.run([sys.executable, "-m", "pytest"], cwd=ROOT)
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest"],
+        cwd=ROOT,
+        check=False,
+    )
     
     try:
         after = snapshot_artifacts(ARTIFACT_DIR)
-    except FileNotFoudnError:
+    except FileNotFoundError:
         print("\nFAIL: Artifact directory was deleted.")
         return 1
     

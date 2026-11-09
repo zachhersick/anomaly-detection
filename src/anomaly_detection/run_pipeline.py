@@ -1,9 +1,9 @@
-from .generator import main as run_generator
-from .features import main as run_features
-from .model import main as run_model
-from .evaluate import main as run_evaluate
-from .alerts import main as run_alerts
 from .alert_events import main as run_alert_events
+from .alerts import main as run_alerts
+from .evaluate import main as run_evaluate
+from .features import main as run_features
+from .generator import main as run_generator
+from .model import main as run_model
 
 PIPELINE_STEPS = [
     ("Generate synthetic sensor data", run_generator),

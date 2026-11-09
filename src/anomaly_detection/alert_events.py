@@ -1,7 +1,9 @@
 import pandas as pd
 
-INPUT_FILE = 'outputs/alerts.csv'
-OUTPUT_FILE = 'outputs/alert_events.csv'
+from .config import (
+    ALERT_EVENTS_PATH,
+    ALERTS_PATH,
+)
 
 MAX_STEP_GAP = 3
 SEVERITY_PRIORITY = {
@@ -46,7 +48,7 @@ output_cols = [
     'real_value',
 ]
 
-def load_alerts(input_file=INPUT_FILE):
+def load_alerts(input_file=ALERTS_PATH):
     df = pd.read_csv(input_file)
     for col in input_req_cols:
         if col not in df.columns:
@@ -62,15 +64,12 @@ def get_severity_priority(severity):
     
 def same_event(current_event, row):
     step_gap = row['step'] - current_event['end_step']
-    if (current_event['machine_id'] == row['machine_id'] and
-        current_event['sensor'] == row['sensor'] and
-        current_event['anomaly_type'] == row['anomaly_type'] and
-        step_gap <= MAX_STEP_GAP and
-        step_gap >= 0
-    ):
-        return True
-    else:
-        return False
+    return bool(
+        current_event["machine_id"] == row["machine_id"]
+        and current_event["sensor"] == row["sensor"]
+        and current_event["anomaly_type"] == row["anomaly_type"]
+        and 0 <= step_gap <= MAX_STEP_GAP
+    )
     
 def safe_min(current_min, new_value):
     if pd.isna(current_min):
@@ -130,8 +129,9 @@ def update_event(event, row):
     
     event['duration'] = event['end_step'] - event['start_step'] + 1
     
-    if row['anomaly_score'] > event['max_anomaly_score']:
-        event['max_anomaly_score'] = row['anomaly_score']
+    event["max_anomaly_score"] = max(
+        event["max_anomaly_score"], row["anomaly_score"]
+    )
         
     event['score_sum'] = event['score_sum'] + row['anomaly_score']
     
@@ -231,10 +231,10 @@ def group_alert_events(alerts):
     
     return events_df
 
-def save_alert_events(events_df, output_file=OUTPUT_FILE):
+def save_alert_events(events_df, output_file=ALERT_EVENTS_PATH):
     events_df.to_csv(output_file, index=False)
     
-def run_alert_event_pipeline(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
+def run_alert_event_pipeline(input_file=ALERTS_PATH, output_file=ALERT_EVENTS_PATH):
     alerts_df = load_alerts(input_file)
 
     events_df = group_alert_events(alerts_df)

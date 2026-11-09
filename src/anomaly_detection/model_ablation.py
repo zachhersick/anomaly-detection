@@ -2,7 +2,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from .config import OUTPUT_DIR
+from .config import (
+    ABLATION_RESULTS_PATH,
+    FEATURES_PATH,
+)
 from .model import (
     build_chronological_splits,
     evaluate_final_test_set,
@@ -12,10 +15,6 @@ from .model import (
     select_threshold,
     train_model,
 )
-
-
-INPUT_CSV = OUTPUT_DIR / "sensor_data_features.csv"
-ABLATION_RESULTS_OUTPUT_PATH = OUTPUT_DIR / "ablation_results.csv"
 
 ABLATION_GROUPS = {
     "lag_autocorr": ["_lag_5_autocorr", "_lag_10_autocorr"],
@@ -33,7 +32,7 @@ ABLATION_RUNS = {
 }
 
 
-def run_ablations(input_csv=INPUT_CSV, output_path=ABLATION_RESULTS_OUTPUT_PATH):
+def run_ablations(input_csv=FEATURES_PATH, output_path=ABLATION_RESULTS_PATH):
     df = load_feature_data(input_csv)
     X_full, y, meta = prepare_model_inputs(df)
     splits = build_chronological_splits(df)

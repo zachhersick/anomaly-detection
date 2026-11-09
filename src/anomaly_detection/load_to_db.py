@@ -1,16 +1,16 @@
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 import pandas as pd
 
+from .config import (
+    ALERT_EVENTS_PATH,
+    ALERTS_PATH,
+    DB_PATH,
+    PREDICTIONS_PATH,
+    RAW_DATA_PATH,
+)
 from .db import create_tables, get_connection
-from .config import DB_PATH
-
-
-SENSOR_DATA_RAW_PATH = Path("outputs/sensor_data_raw.csv")
-PREDICTIONS_PATH = Path("outputs/predictions.csv")
-ALERTS_PATH = Path("outputs/alerts.csv")
-ALERT_EVENTS_PATH = Path("outputs/alert_events.csv")
 
 
 def get_table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
@@ -133,7 +133,7 @@ def main() -> None:
 
         load_csv_if_exists(
             conn=conn,
-            csv_path=SENSOR_DATA_RAW_PATH,
+            csv_path=RAW_DATA_PATH,
             table_name="sensor_readings",
             run_id=run_id,
         )

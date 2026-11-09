@@ -1,5 +1,4 @@
 import pandas as pd
-import statistics
 import pytest
 
 from anomaly_detection.features import build_features, save_feature_outputs
@@ -26,7 +25,7 @@ def test_build_features_has_required_original_columns():
         fixed_seed=295,
     )
 
-    features_df, retention_df = build_features(raw_df)
+    features_df, _ = build_features(raw_df)
 
     required_columns = {
         "step",
@@ -52,7 +51,7 @@ def test_build_features_has_engineered_columns():
         fixed_seed=295,
     )
 
-    features_df, retention_df = build_features(raw_df)
+    features_df, _ = build_features(raw_df)
 
     expected_engineered_columns = {
         "temperature_delta",
@@ -77,7 +76,7 @@ def test_build_features_drops_initial_rolling_rows():
         fixed_seed=295,
     )
 
-    features_df, retention_df = build_features(raw_df)
+    features_df, _ = build_features(raw_df)
 
     assert len(features_df) < len(raw_df)
 
@@ -89,7 +88,7 @@ def test_build_features_retention_report_has_expected_columns():
         fixed_seed=295,
     )
 
-    features_df, retention_df = build_features(raw_df)
+    _, retention_df = build_features(raw_df)
 
     expected_columns = {
         "anomaly_type",

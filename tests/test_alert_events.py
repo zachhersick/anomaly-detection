@@ -7,11 +7,11 @@ from anomaly_detection.alert_events import (
     get_severity_priority,
     group_alert_events,
     load_alerts,
+    run_alert_event_pipeline,
     safe_max,
     safe_min,
     same_event,
     save_alert_events,
-    run_alert_event_pipeline,
     start_event,
     update_event,
 )

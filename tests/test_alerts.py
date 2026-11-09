@@ -6,7 +6,6 @@ from anomaly_detection.alerts import (
     ALERT_TYPE_MODEL,
     ALERT_TYPE_MODEL_AND_THRESHOLD,
     SEVERITY_CRITICAL,
-    SEVERITY_INFO,
     SEVERITY_WARNING,
     build_alert,
     build_alerts,

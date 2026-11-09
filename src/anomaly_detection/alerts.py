@@ -1,18 +1,15 @@
 import pandas as pd
 
+from .config import (
+    ALERTS_PATH,
+    PREDICTIONS_PATH,
+)
+from .config import (
+    SENSORS as sensors,
+)
+
 #model prediction + anomaly score + sensor value + safety value + safety rule = alert record
 
-INPUT_FILE = 'outputs/predictions.csv'
-OUTPUT_FILE = 'outputs/alerts.csv'
-
-SENSORS = [
-    'temperature',
-    'pressure',
-    'vibration',
-    'flow_rate',
-    'voltage',
-    'current'
-]
 
 req_cols = [
     'step',
@@ -29,18 +26,11 @@ req_cols = [
     'current'
 ]
 
-eval_cols = [
-    'real_value',
-    'threshold',
-    '*_anomaly',
-]
-
 SEVERITY_INFO = 'INFO'
 SEVERITY_WARNING = 'WARNING'
 SEVERITY_CRITICAL = 'CRITICAL'
 
 ALERT_TYPE_MODEL = 'model_anomaly'
-ALERT_TYPE_THRESHOLD = 'threshold_violation'
 ALERT_TYPE_MODEL_AND_THRESHOLD = 'model_and_threshold'
 
 ALERT_STATUS_OPEN = 'OPEN'
@@ -156,7 +146,6 @@ THRESHOLD_CHECK_ORDER = [
 
 WARNING_SCORE_THRESHOLD = 0.35
 HIGH_SCORE_THRESHOLD = 0.70
-CRITICAL_SCORE_THRESHOLD = 0.90
 
 def check_violation(row, sensor):
     if sensor not in SAFETY_THRESHOLDS:
@@ -228,7 +217,7 @@ def build_model_reason(row, sensor):
 def build_alert(row, alert_id):
     sensor = row['target_sensor']
     
-    if sensor not in SENSORS:
+    if sensor not in sensors:
         reason = REASON_TEMPLATES['unknown_sensor'].format(
             sensor=sensor
         )
@@ -313,7 +302,7 @@ def print_alert_summary(alerts):
         .head(10)
     )
 
-def load_predictions(input_file=INPUT_FILE):
+def load_predictions(input_file=PREDICTIONS_PATH):
     df = pd.read_csv(input_file)
 
     missing_cols = [
@@ -345,10 +334,10 @@ def build_alerts(predictions_df):
     
     return alerts
 
-def save_alerts(alerts_df, output_file=OUTPUT_FILE):    
+def save_alerts(alerts_df, output_file=ALERTS_PATH):    
     alerts_df.to_csv(output_file, index=False)
 
-def run_alert_pipeline(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
+def run_alert_pipeline(input_file=PREDICTIONS_PATH, output_file=ALERTS_PATH):
     predictions_df = load_predictions(input_file)
     alerts_df = build_alerts(predictions_df)
     save_alerts(alerts_df, output_file)

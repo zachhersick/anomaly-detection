@@ -1,6 +1,6 @@
 import pandas as pd
 
-import anomaly_detection.model_ablation as model_ablation
+from anomaly_detection import model_ablation
 from anomaly_detection.model import ThresholdSelection, build_chronological_splits
 
 

@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -47,3 +48,26 @@ def test_create_tables_creates_expected_indexes(temp_connection):
     }
 
     assert expected_indexes.issubset(index_names)
+    
+    
+def test_create_tables_uses_timezone_aware_timestamp(temp_connection):
+    create_tables(temp_connection)
+    conn = temp_connection
+     
+    conn.execute(
+        """
+        INSERT INTO pipeline_runs
+            (notes, fixed_seed, model_threshold, max_step_gap)
+        VALUES (?, ?, ?, ?)
+        """,
+        ("UTC timestamp test", 42, 0.35, 3),
+    )
+    
+    row = conn.execute(
+        "SELECT created_at FROM pipeline_runs"
+    ).fetchone()
+    
+    timestamp = datetime.fromisoformat(row[0])
+    
+    assert timestamp.tzinfo is not None
+    assert timestamp.utcoffset() == timedelta(0)

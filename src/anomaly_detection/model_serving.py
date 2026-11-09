@@ -1,5 +1,6 @@
-import joblib
 import json
+
+import joblib
 import pandas as pd
 
 from .config import ARTIFACT_DIR

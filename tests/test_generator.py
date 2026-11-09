@@ -1,6 +1,7 @@
 import pandas as pd
 
-from anomaly_detection.generator import generate_sensor_data, sensors
+from anomaly_detection.config import SENSORS as sensors
+from anomaly_detection.generator import generate_sensor_data
 
 
 def test_generate_sensor_data_returns_expected_shape():
